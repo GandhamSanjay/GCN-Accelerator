@@ -10,7 +10,8 @@ case class AccParams(
 )
 
 case class CoreParams(
-  val slaveReg: Int = 4
+  val slaveReg: Int = 4,
+  val eventCtr: Int = 0
 ) {
   require(slaveReg > 0, "Core slave register must be atleast 1")
 }
@@ -27,7 +28,8 @@ class ZcuConfig extends Config((site, here, up) => {
         lenBits  = 8,
         userBits = 1),
       coreParams = CoreParams(
-        slaveReg = 4
+        slaveReg = 4,
+        eventCtr = 0
       )
     )
 })

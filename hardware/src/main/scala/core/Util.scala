@@ -1,4 +1,4 @@
-package gcn.core
+package gcn.core.util
 
 import chisel3._
 import chisel3.util._

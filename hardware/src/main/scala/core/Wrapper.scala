@@ -1,6 +1,7 @@
 package gcn.core
 
 import chisel3._
+import chisel3.stage._
 import chisel3.util._
 import vta.util.config._
 
@@ -12,8 +13,9 @@ class Wrapper(implicit p: Parameters) extends RawModule{
   val s_axi_control = IO(new XilinxAXILiteClient(hp))
 
   val core = withClockAndReset(clock = ap_clk, reset = ~ap_rst_n) {
-    Module(new AccCore)
+    Module(new CR)
   }
+  core.io.cr.finish := false.B
 
   // host
   core.io.host.aw.valid := s_axi_control.AWVALID
@@ -42,7 +44,15 @@ class Wrapper(implicit p: Parameters) extends RawModule{
 
 }
 
+// Executable object generate verilog
 object DefaultTemplate extends App {
   implicit val p: Parameters = new ZcuConfig
-  (new chisel3.stage.ChiselStage).emitVerilog(new Wrapper, args)
+  val chiselStage = new chisel3.stage.ChiselStage
+  chiselStage.execute(
+    Array(
+      "-X", "verilog", 
+      "-e", "verilog", 
+      "--target-dir", "verilog"), 
+    Seq(ChiselGeneratorAnnotation(() => new Wrapper()))
+  )
 }
