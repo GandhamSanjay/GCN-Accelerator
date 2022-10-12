@@ -1,10 +1,10 @@
 # GCN-Accelerator
 
-** Generate verilog **
+#### Generate verilog
 `make verilog`
 
-** clean build **
+#### clean build
 `make cleanBuild`
 
-** Make vscode to recompile chisel **
+#### Make vscode to recompile chisel
 `make clean`
