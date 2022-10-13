@@ -10,4 +10,5 @@
 `make clean`
 
 ### Assumptions
-- ins_count is a multiple of 2
+- ins_count is a power of 2
+- memParam.dataBits/INST_BITS is a power of 2
