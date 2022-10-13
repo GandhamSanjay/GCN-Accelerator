@@ -8,3 +8,6 @@
 
 #### Make vscode to recompile chisel
 `make clean`
+
+### Assumptions
+- ins_count is a multiple of 2
