@@ -1,4 +1,4 @@
-name := "atom"
+name := "gcn"
 version := "0.1.0-SNAPSHOT"
 organization := "com.github.gandhamsanjay"
 

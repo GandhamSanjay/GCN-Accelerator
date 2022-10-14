@@ -1,22 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 package gcn.core
 
 import chisel3._
@@ -34,47 +15,59 @@ abstract class CRBase(implicit p: Parameters) extends GenericParameterizedBundle
  * the Core unit.
  */
 class CRMaster(implicit p: Parameters) extends CRBase {
+  val cp = p(AccKey).crParams
+  val mp = p(AccKey).memParams
   val launch = Output(Bool())
   val finish = Input(Bool())
+  val ecnt = if (cp.nEventCtr > 0) Some(Vec(cp.nEventCtr, Flipped(ValidIO(UInt(cp.regBits.W))))) else None
+  val vals = Output(Vec(cp.nMmapReg, UInt(cp.regBits.W)))
 }
 
-/** CRSlave.
+/** CRClient.
  *
  * This is the slave interface used by the Core module to communicate
  * to the CR in the Accelerator.
  */
 class CRClient(implicit p: Parameters) extends CRBase {
+  val cp = p(AccKey).crParams
+  val mp = p(AccKey).memParams
   val launch = Input(Bool())
   val finish = Output(Bool())
+  val ecnt = if (cp.nEventCtr > 0) Some(Vec(cp.nEventCtr, ValidIO(UInt(cp.regBits.W)))) else None
+  val vals = Input(Vec(cp.nMmapReg, UInt(cp.regBits.W)))
 }
 /** Control Registers (CR).
  *
  * This unit provides control registers (32 bits) to be used by a control
  * unit. These registers are read-only by the core.
  * ****************** TO-DO *************************
- * Add event counter registers to CR to
+ * Add event counter registers to CR
  */
 class CR(implicit p: Parameters) extends Module {
-  val coreParams = p(AccKey).coreParams
+  val crParams = p(AccKey).crParams
+  val regBits = crParams.regBits
   val io = IO(new Bundle {
     val host = new AXILiteClient(p(AccKey).hostParams)
     val cr = new CRMaster
-    val eventCounters = if (p(AccKey).coreParams.eventCtr > 0)  Some(Output(RegInit(VecInit(Seq.fill(coreParams.eventCtr)(0.U(32.W)))))) else None
   })
-  val nSlaveReg = p(AccKey).coreParams.slaveReg
+
+  // Slave registers
+  val nSlaveReg = crParams.nSlaveReg
+  val slaveReg  = RegInit(VecInit(Seq.fill(nSlaveReg)(0.U(regBits.W))))
+  val rdata  = WireDefault(slaveReg(0))
+  val slaveRegReadSelect = (io.host.ar.bits.addr >> 2)(log2Ceil(nSlaveReg)-1,0)
+  
+  // CR IO 
+  val pulse = Wire(UInt(regBits.W))
+  pulse := slaveReg(0)(0) && !RegNext(slaveReg(0)(0), init  = false.B)
+  io.cr.launch := pulse
+  for {i <- 0 until crParams.nMmapReg}{
+    io.cr.vals(i) := slaveReg(i+1)
+  }
 
   // read control (AR, R)
   val sReadAddress :: sReadData :: Nil = Enum(2)
   val rstate = RegInit(sReadAddress)
-  val slaveReg  = RegInit(VecInit(Seq.fill(nSlaveReg)(0.U(32.W))))
-  val rdata  = WireDefault(slaveReg(0))
-  val slaveRegReadSelect = (io.host.ar.bits.addr >> 2)(log2Ceil(nSlaveReg)-1,0)
-  // val dataSelect = Mux(rstate === sReadData, slaveRegSelect, 0.U(log2Ceil(nSlaveReg).W))    //Do not  toggle mux select when not in valid state
-  val pulse = Wire(UInt(32.W))
-  pulse := slaveReg(0)(0) && !RegNext(slaveReg(0)(0))
-  
-  // CR Master IO 
-  io.cr.launch := pulse
 
   switch(rstate) {
     is(sReadAddress) {
@@ -97,7 +90,7 @@ class CR(implicit p: Parameters) extends Module {
   io.host.r.bits.resp := 0.U
 
   // Write control (AW, W, B)
-  val waddr = RegInit("h_ffff".U(32.W)) // init with invalid address
+  val waddr = RegInit("h_ffff".U(regBits.W)) // init with invalid address
   val wdata = io.host.w.bits.data
   val sWriteAddress :: sWriteData :: sWriteResponse :: Nil = Enum(3)
   val wstate = RegInit(sWriteAddress)

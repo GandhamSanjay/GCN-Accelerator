@@ -16,4 +16,5 @@ clean :
 	rm -rf target
 
 verilog :
+	rm -rf verilog
 	sbt run
