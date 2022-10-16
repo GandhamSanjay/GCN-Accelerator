@@ -117,17 +117,10 @@ class FetchDecode extends Module with ISAConstants{
       io.inst,
       List(N, OP_X),
       Array(
-        // LUOP -> List(Y, OP_G),
-        LWGT -> List(Y, OP_L),
-        // LINP -> List(Y, OP_L),
-        // LACC -> List(Y, OP_G),
-        // SOUT -> List(Y, OP_S),
-        GEMM -> List(Y, OP_G),
-        // FNSH -> List(Y, OP_G),
-        // VMIN -> List(Y, OP_G),
-        // VMAX -> List(Y, OP_G),
-        // VADD -> List(Y, OP_G),
-        // VSHX -> List(Y, OP_G)
+        LCOL -> List(Y, OP_L),
+        LIDX -> List(Y, OP_L),
+        LVAL -> List(Y, OP_L),
+        LDEN -> List(Y, OP_L)
       )
     )
 
@@ -137,7 +130,7 @@ class FetchDecode extends Module with ISAConstants{
   // io.isCompute := cs_val_inst & cs_op_type === OP_G
   // io.isStore := cs_val_inst & cs_op_type === OP_S
   io.isLoad := (cs_val_inst && cs_op_type === OP_L)
-  io.isCompute := (cs_val_inst && cs_op_type === OP_G)
+  io.isCompute := false.B
   io.isStore := false.B
 }
 

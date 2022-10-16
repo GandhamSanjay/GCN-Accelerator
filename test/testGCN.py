@@ -44,7 +44,7 @@ class TB(object):
         try:
             str = f.read(8)
             while str != "":
-                print(f"str is {str}\n")
+                # print(f"str is {str}\n")
                 byte = int(str[::-1],2).to_bytes(1,'little')
                 self.memory.seek(addr)
                 self.memory.write(byte)
@@ -64,5 +64,5 @@ class TB(object):
 async def my_first_test(dut):
     """Try accessing the design."""
     tb = TB(dut)
-    await tb.launch(inst_cnt = 16)
+    await tb.launch(inst_cnt = 4)
     await Timer(10000, units='ns')
