@@ -23,9 +23,13 @@ case class CRParams(
 }
 
 case class CoreParams(
-  val loadInstQueueEntries: Int = 1
+  val loadInstQueueEntries: Int = 1,
+  val loadDataQueueEntries: Int = 1,
+  val nScratchPadMem: Int = 4
 ) {
   require(loadInstQueueEntries > 0, "instQueueEntries must be atleast 1")
+  require(loadDataQueueEntries > 0, "dataQueueEntries must be atleast 1")
+  require(nScratchPadMem > 0, "Number of scratchpads must be greater than 1")
 }
 
 case class MEParams

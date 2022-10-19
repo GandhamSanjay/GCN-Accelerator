@@ -1,27 +1,9 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 package gcn.core
 
 import chisel3._
 import chisel3.util._
 import vta.util.config._
+import scala.math._
 
 /** Load.
  *
@@ -32,12 +14,16 @@ import vta.util.config._
  */
 class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with ISAConstants{
   val mp = p(AccKey).memParams
+  val cp = p(AccKey).coreParams
   val io = IO(new Bundle {
     val inst = Flipped(Decoupled(UInt(INST_BITS.W)))
     val me_rd = new MEReadMaster
+    val spWrite = Vec(cp.nScratchPadMem, Decoupled(new SPWriteCmd))
   })
   // Module instantiation
-  val inst_q = Module(new Queue(UInt(INST_BITS.W), p(AccKey).coreParams.loadInstQueueEntries))
+  val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.loadInstQueueEntries))
+  val data_qEntries = (1 << mp.lenBits)
+  val data_q = Module(new Queue(new SPWriteCmd, data_qEntries))
   val dec = Module(new LoadDecode)
   // state machine
   val sIdle :: sStride :: sSeq :: sSeqCmd :: sSeqReadData ::Nil = Enum(5)
@@ -53,10 +39,14 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   val rlen = Reg(chiselTypeOf(io.me_rd.cmd.bits.len))
   val rlenRem = Reg(chiselTypeOf(io.me_rd.cmd.bits.len))
   val transferMaxSizeBytes = (mp.lenBits + 1) << log2Ceil(mp.dataBits / 8)
-  val rdata = Reg(chiselTypeOf(io.me_rd.data.bits.data))
+  val saddr = Reg(UInt(M_SRAM_OFFSET_BITS.W))
+  val mask = UInt((mp.dataBits/32).W)
+
 
   // instruction queue
   dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)
+
+  val scratchSel = Cat(dec.io.isCol, dec.io.isPtr, !dec.io.isSeq, dec.io.isVal) // col,ptr,den,val
 
   // control
   switch(state) {
@@ -64,7 +54,8 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
       when(start) {
         when(dec.io.isSeq){
           state := sSeqCmd
-          raddr := dec.io.sramOffset
+          raddr := dec.io.dramOffset
+          saddr := dec.io.sramOffset
           when(transferTotal < maxTransferPerReq){
             rlen := transferTotal - 1.U
             rlenRem := transferTotal - 1.U
@@ -80,13 +71,15 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
       }
     }
     is(sSeqCmd){
-      when(io.me_rd.cmd.ready){
-        state := sSeqReadData 
+      when(data_q.io.count === 0.U){
+        when(io.me_rd.cmd.ready){
+          state := sSeqReadData 
        }
+      }
     }
     is(sSeqReadData){
       when(io.me_rd.data.valid){
-        rdata := io.me_rd.data.bits.data
+        saddr := saddr + (mp.dataBits/8).U
           when(rlenRem === 0.U){
             when(transferRem === 0.U){
               state := sIdle
@@ -119,12 +112,25 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   // instructions
   inst_q.io.enq <> io.inst
   inst_q.io.deq.ready := (state === sIdle)
+
+  // data queue
+  data_q.io.enq.bits.data := io.me_rd.data.bits.data
+  data_q.io.enq.bits.spSel := scratchSel
+  data_q.io.enq.bits.addr := saddr + (mp.dataBits/8).U
+  data_q.io.enq.valid := (state === sSeqReadData) && io.me_rd.data.valid
   
   // dram read
   io.me_rd.cmd.bits.len := rlen
   io.me_rd.cmd.bits.tag := dec.io.sramOffset
   io.me_rd.cmd.bits.addr := raddr
-  io.me_rd.cmd.valid := (state === sSeqCmd)
+  io.me_rd.cmd.valid := (state === sSeqCmd) && (data_q.io.count === 0.U)
   io.me_rd.data.ready := true.B
+
+  // Data Write Queue to multiple scratchpad
+  for(i <- 0 until cp.nScratchPadMem){
+    io.spWrite(i).bits := data_q.io.deq.bits
+    io.spWrite(i).valid := data_q.io.deq.bits.spSel(i) && data_q.io.deq.valid
+    data_q.io.deq.ready := data_q.io.deq.bits.spSel(i) && io.spWrite(i).ready 
+  }
 
 }
