@@ -8,7 +8,8 @@ case class AccParams(
     hostParams: AXIParams,
     crParams: CRParams,
     memParams: AXIParams,
-    meParams: MEParams
+    meParams: MEParams,
+    coreParams: CoreParams
 )
 
 case class CRParams(
@@ -21,8 +22,14 @@ case class CRParams(
   require(nMmapReg < nSlaveReg, "memory mapped registers should be atleast 1 less than slave register")
 }
 
+case class CoreParams(
+  val loadInstQueueEntries: Int = 1
+) {
+  require(loadInstQueueEntries > 0, "instQueueEntries must be atleast 1")
+}
+
 case class MEParams
-  (val nReadClients: Int = 1,
+  (val nReadClients: Int = 2,
     val nWriteClients: Int = 1,
     val clientBits : Int = 3,
     val RequestQueueDepth : Int = 16,
@@ -50,6 +57,7 @@ class ZcuConfig extends Config((site, here, up) => {
         lenBits  = 8,
         userBits = 1),
       crParams = CRParams(),
+      coreParams = CoreParams(),
       memParams = AXIParams(coherent = false,
         addrBits = 32,
         dataBits = 512,

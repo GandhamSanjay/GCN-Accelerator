@@ -19,6 +19,7 @@ class Core(implicit p: Parameters) extends Module {
     val me = new MEMaster
   })
   val fetch = Module(new Fetch)
+  val load = Module(new Load)
   val start = Wire(Bool())
   start := io.cr.launch
 
@@ -31,6 +32,9 @@ class Core(implicit p: Parameters) extends Module {
   fetch.io.ins_baddr := io.cr.vals(0)
   fetch.io.ins_count := io.cr.vals(1)
 
+  // Load inputs and weights from memory (DRAM) into scratchpads (SRAMs)
+  load.io.inst <> fetch.io.inst.ld
+
   // Read(rd) and write(wr) from/to memory (i.e. DRAM)
   io.cr.finish := (state === sFinish)
   io.me.wr(0).cmd.valid := false.B
@@ -41,6 +45,7 @@ class Core(implicit p: Parameters) extends Module {
   io.me.wr(0).data.bits.data := 0.U
   io.me.wr(0).data.bits.strb := 0.U
   io.me.rd(0) <> fetch.io.me_rd
+  io.me.rd(1) <> load.io.me_rd
   // io.me.rd(0).cmd.valid := state === sBusy
   // io.me.rd(0).cmd.bits.addr := 0.U
   // io.me.rd(0).cmd.bits.len := 0.U
