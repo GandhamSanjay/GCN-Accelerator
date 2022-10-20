@@ -21,6 +21,7 @@ class Core(implicit p: Parameters) extends Module {
   val cp = p(AccKey).coreParams
   val fetch = Module(new Fetch)
   val load = Module(new Load)
+  val compute = Module(new Compute)
   val start = Wire(Bool())
 
   // ScratchPad Instantiation
@@ -33,6 +34,14 @@ class Core(implicit p: Parameters) extends Module {
     load.io.spWrite(1) <> spDen.io.spWrite
     load.io.spWrite(2) <> spPtr.io.spWrite
     load.io.spWrite(3) <> spCol.io.spWrite
+    compute.io.spReadCmd(0) <> spVal.io.spReadCmd
+    compute.io.spReadData(0) <> spVal.io.spReadData
+    compute.io.spReadCmd(1) <> spDen.io.spReadCmd
+    compute.io.spReadData(1) <> spDen.io.spReadData
+    compute.io.spReadCmd(2) <> spPtr.io.spReadCmd
+    compute.io.spReadData(2) <> spPtr.io.spReadData
+    compute.io.spReadCmd(3) <> spCol.io.spReadCmd
+    compute.io.spReadData(3) <> spCol.io.spReadData
   }
 
   start := io.cr.launch
@@ -48,6 +57,7 @@ class Core(implicit p: Parameters) extends Module {
 
   // Load inputs and weights from memory (DRAM) into scratchpads (SRAMs)
   load.io.inst <> fetch.io.inst.ld
+  compute.io.inst <> fetch.io.inst.co
 
   // Read(rd) and write(wr) from/to memory (i.e. DRAM)
   io.cr.finish := (state === sFinish)

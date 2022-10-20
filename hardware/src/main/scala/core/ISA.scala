@@ -45,7 +45,7 @@ object ISA {
   private val taskId: HashMap[String, String] =
     HashMap(("load", "00"),
       ("store", "01"),
-      ("gemm", "10"),
+      ("spmm", "10"),
       ("finish", "11"))
 
   private val memId: HashMap[String, String] =
@@ -61,10 +61,17 @@ object ISA {
     instPat(inst)
   }
 
+  private def spmm: BitPat = {
+    val rem = xLen - idBits("task")
+    val inst = dontCare(rem) + taskId("spmm")
+    instPat(inst)
+  }
+
 
   def LCOL = load("col")
   def LPTR = load("ptr")
   def LVAL = load("val")
   def LDEN = load("den")
   def LOUT = load("out")
+  def SPMM = spmm
 }

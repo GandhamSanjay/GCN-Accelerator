@@ -124,17 +124,15 @@ class FetchDecode extends Module with ISAConstants{
         LCOL -> List(Y, OP_L),
         LPTR -> List(Y, OP_L),
         LVAL -> List(Y, OP_L),
-        LDEN -> List(Y, OP_L)
+        LDEN -> List(Y, OP_L),
+        SPMM -> List(Y, OP_C)
       )
     )
 
   val (cs_val_inst: Bool) :: cs_op_type :: Nil = csignals
 
-  // io.isLoad := cs_val_inst & cs_op_type === OP_L
-  // io.isCompute := cs_val_inst & cs_op_type === OP_G
-  // io.isStore := cs_val_inst & cs_op_type === OP_S
   io.isLoad := (cs_val_inst && cs_op_type === OP_L)
-  io.isCompute := (cs_val_inst & cs_op_type === OP_X)
+  io.isCompute := (cs_val_inst & cs_op_type === OP_C)
   io.isStore := (cs_val_inst & cs_op_type === OP_S)
 }
 

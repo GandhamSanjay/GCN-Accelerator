@@ -6,6 +6,7 @@ import chisel3._
 import chisel3.util._
 import vta.util.config._
 import os.write
+import gcn.core.util.MuxTree
 
 
 /** Scratchpad Logic.
@@ -51,11 +52,14 @@ class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p
 
     // Scratch size params
   val blockSize = cp.blockSize
+  val bankBlockSize = cp.scratchBankBlockSize
   val scratchSize = cp.scratchSizeMap(scratchType)/mp.dataBits
-  val nBanks = mp.dataBits/blockSize
+  val nBanks = mp.dataBits/bankBlockSize
   
   val io = IO(new Bundle {
     val spWrite = Flipped(Decoupled(new SPWriteCmd))
+    val spReadCmd = Flipped(Decoupled(new SPReadCmd))
+    val spReadData = Decoupled(new SPReadData)
     // val spReadCmd = Vec(nBanks, Flipped(Decoupled(new SPReadCmd)))
     // val spReadData = Vec(nBanks, Decoupled(new SPReadData))
     val out = Output(Bool())
@@ -72,12 +76,27 @@ class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p
   val write_q = Module(new Queue(new SPWriteCmd, 10))
   write_q.io.enq <> io.spWrite
   io.out := (write_q.io.count === 0.U)
-  write_q.io.deq.ready := isReadEmpty
+  write_q.io.deq.ready := true.B
   val waddr = WireDefault(write_q.io.deq.bits.addr)
   val wdata = WireDefault(write_q.io.deq.bits.data)
   writeEn := write_q.io.deq.fire 
 
-  // // Read req/data queue
+  // Read req/data/ queue
+  val readCmd_q = Module(new Queue(new SPReadCmd, 10))
+  val readData_q = Module(new Queue(new SPReadData, 10))
+  readCmd_q.io.enq <> io.spReadCmd
+  io.spReadData <> readData_q.io.deq
+  readCmd_q.io.deq.ready := true.B
+  val raddr = WireDefault(readCmd_q.io.deq.bits.addr)
+  val rdata = Wire(Vec(nBanks, UInt(bankBlockSize.W)))
+  val rtag = WireDefault(readCmd_q.io.deq.bits.tag)
+  val bankSelPrev = RegInit(0.U(log2Ceil(nBanks).W))
+  val tagPrevRead = Reg(chiselTypeOf(readData_q.io.deq.bits.tag))
+  readEn := readCmd_q.io.deq.fire
+  readData_q.io.enq.valid := RegNext(readEn)
+  readData_q.io.enq.bits.data := MuxTree(bankSelPrev, rdata)
+  readData_q.io.enq.bits.tag := tagPrevRead
+  // // Banked Read req/data queue
   // val read_qSeq = Seq.fill(nBanks) {Module(new Queue(new SPReadCmd, 10))}
   // val isReadEmptyVec = for (i <- 0 until nBanks) yield {
   //   (read_qSeq(i).io.count === 0.U)
@@ -91,16 +110,28 @@ class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p
 
 
   val ram = Seq.fill(nBanks){
-    SyncReadMem(scratchSize, UInt(blockSize.W))
+    SyncReadMem(scratchSize, UInt(bankBlockSize.W))
   }
 
   when(writeEn){
     val writeIdx = waddr >> log2Ceil(blockSize/8)
     for (i <- 0 until (nBanks)){
-      ram(i).write(writeIdx, wdata((i+1)*blockSize - 1, i*blockSize))
+      ram(i).write(writeIdx, wdata((i+1)*bankBlockSize - 1, i*bankBlockSize))
     }
-  }.elsewhen(readEn){
-    // Read control logic goes here
+  }
+  when(readEn){
+    val raddrByteAlign =  (raddr >> log2Ceil(blockSize/8))
+    val bankSel = (raddrByteAlign)(log2Ceil(nBanks) - 1, 0)
+    val bankIdx = (raddrByteAlign) >> (log2Ceil(nBanks))
+    bankSelPrev := bankSel
+    tagPrevRead := rtag
+    for (i <- 0 until (nBanks)){
+      rdata(i) := ram(i).read(bankIdx, bankSel === i.U)
+    }
+  }.otherwise{
+    for (i <- 0 until (nBanks)){
+      rdata(i) := 0.U
+    }
   }
   
 
