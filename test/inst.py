@@ -29,10 +29,19 @@ class inst:
             for i in range (119):
                 instSeq = instSeq + str(random.randint(0,1))
         return instSeq
+    
+    def randSpmm(self, count = 1):
+        instSeq = ""
+        for num in range(count):
+            instSeq = instSeq + "010000000"
+            for i in range (119):
+                instSeq = instSeq + str(random.randint(0,1))
+        return instSeq
         
 ### Create txt file to be loaded into the memory for vta. 
      
 f = open('ram.txt','w')
 instGen = inst()
-for I in range(4):
-    f.write(instGen.load(xsize = 64))
+f.write(instGen.randSpmm(count = 4))
+# for I in range(4):
+#     f.write(instGen.load(xsize = 64))
