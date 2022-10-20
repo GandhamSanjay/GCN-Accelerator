@@ -3,6 +3,7 @@ package gcn.core
 import chisel3._
 import chisel3.util._
 import vta.util.config._
+import scala.collection.mutable.HashMap
 
 case class AccParams(
     hostParams: AXIParams,
@@ -25,11 +26,24 @@ case class CRParams(
 case class CoreParams(
   val loadInstQueueEntries: Int = 1,
   val loadDataQueueEntries: Int = 1,
-  val nScratchPadMem: Int = 4
+  val Compression: String = "CSR",
+  val scratchColSize: Int = 1024,
+  val scratchDenSize: Int = 1024,
+  val scratchValSize: Int = 1024,
+  val scratchPtrSize: Int = 1024,
+  val blockSize: Int = 32,
+  val nPE: Int = 1
 ) {
   require(loadInstQueueEntries > 0, "instQueueEntries must be atleast 1")
   require(loadDataQueueEntries > 0, "dataQueueEntries must be atleast 1")
-  require(nScratchPadMem > 0, "Number of scratchpads must be greater than 1")
+  private val ScratchPadMap: HashMap[String, Int] =
+    HashMap(("CSR", 4), ("None", 2))
+  var scratchSizeMap: HashMap[String, Int] = HashMap(("None", 0))
+  if(Compression=="CSR"){
+    scratchSizeMap = 
+      HashMap(("Col", scratchColSize), ("Val", scratchValSize), ("Ptr", scratchPtrSize), ("Den", scratchDenSize))
+  }
+  val nScratchPadMem = ScratchPadMap(Compression)
 }
 
 case class MEParams

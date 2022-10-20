@@ -18,13 +18,23 @@ class Core(implicit p: Parameters) extends Module {
     val cr = new CRClient
     val me = new MEMaster
   })
+  val cp = p(AccKey).coreParams
   val fetch = Module(new Fetch)
   val load = Module(new Load)
   val start = Wire(Bool())
-  val spVal = Module(new Scratchpad(scratchType = "Val"))
-  val spCol = Module(new Scratchpad(scratchType = "Val"))
-  val spPtr = Module(new Scratchpad(scratchType = "Val"))
-  val spDen = Module(new Scratchpad(scratchType = "Val"))
+
+  // ScratchPad Instantiation
+  if(cp.Compression == "CSR"){
+    val spVal = Module(new Scratchpad(scratchType = "Val"))
+    val spCol = Module(new Scratchpad(scratchType = "Col"))
+    val spPtr = Module(new Scratchpad(scratchType = "Ptr"))
+    val spDen = Module(new Scratchpad(scratchType = "Den"))
+    load.io.spWrite(0) <> spVal.io.spWrite
+    load.io.spWrite(1) <> spDen.io.spWrite
+    load.io.spWrite(2) <> spPtr.io.spWrite
+    load.io.spWrite(3) <> spCol.io.spWrite
+  }
+
   start := io.cr.launch
 
   val sIdle :: sBusy :: sFinish :: Nil = Enum(3)
@@ -38,10 +48,6 @@ class Core(implicit p: Parameters) extends Module {
 
   // Load inputs and weights from memory (DRAM) into scratchpads (SRAMs)
   load.io.inst <> fetch.io.inst.ld
-  load.io.spWrite(0) <> spVal.io.spWrite
-  load.io.spWrite(1) <> spDen.io.spWrite
-  load.io.spWrite(2) <> spPtr.io.spWrite
-  load.io.spWrite(3) <> spCol.io.spWrite
 
   // Read(rd) and write(wr) from/to memory (i.e. DRAM)
   io.cr.finish := (state === sFinish)
