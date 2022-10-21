@@ -46,9 +46,11 @@ class Core(implicit p: Parameters) extends Module {
 
   start := io.cr.launch
 
-  val sIdle :: sBusy :: sFinish :: Nil = Enum(3)
+  val sIdle :: sLoad :: sCompute :: sFinish :: Nil = Enum(4)
   val state = RegInit(sIdle)
   val ctr = RegInit(0.U(1.W))
+  compute.io.valid := (state === sCompute) && !compute.io.done
+  load.io.valid := (state === sLoad) && !load.io.done
 
   // Fetch instructions (tasks) from memory (DRAM) into queues (SRAMs)
   fetch.io.launch := io.cr.launch
@@ -79,16 +81,19 @@ class Core(implicit p: Parameters) extends Module {
   switch(state){
     is(sIdle){
         when(start){
-            state := sBusy
+            state := sLoad
             ctr := ctr + 1.U
         }
     }
-    is(sBusy){
-        when(ctr === 0.U){
-            state := sFinish
-        }.otherwise{
-            ctr := ctr + 1.U
-        }
+    is(sLoad){
+      when(load.io.done){
+        state := sCompute
+      }
+    }
+    is(sCompute){
+      when(compute.io.done){
+        state := sLoad
+      }
     }
     is(sFinish){
         state := sIdle

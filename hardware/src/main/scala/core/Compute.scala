@@ -17,6 +17,8 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val inst = Flipped(Decoupled(UInt(INST_BITS.W)))
     val spReadCmd = Vec(cp.nScratchPadMem, Decoupled(new SPReadCmd))
     val spReadData = Vec(cp.nScratchPadMem, Flipped(Decoupled(new SPReadData)))
+    val valid = Input(Bool())
+    val done = Output(Bool())
   })
 //   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
@@ -27,6 +29,9 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val sIdle :: sBusy :: sDone ::Nil = Enum(3)
   val state = RegInit(sIdle)
   val start = inst_q.io.deq.fire
+  val delayCtr = RegInit(0.U(5.W))
+  val done = RegInit(0.U(1.W))
+  io.done := done
 //   val done = true.B
 //   val inst = RegEnable(inst_q.io.deq.bits, start)
 //   val nBlockPerTransfer = mp.dataBits / 32
@@ -57,14 +62,21 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   // control
   switch(state) {
     is(sIdle) {
+      done := 0.U
       when(start) {
         state := sBusy
+        delayCtr := 1.U
       }
     }
     is(sBusy){
-      state := sDone
+      when(delayCtr === 0.U){
+        state := sDone
+      }.otherwise{
+        delayCtr := delayCtr + 1.U
+      }
     }
     is(sDone){
+      done := 1.U
       state := sIdle
     }
   }
@@ -72,7 +84,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
 
 //   // instructions
   inst_q.io.enq <> io.inst
-  inst_q.io.deq.ready := (state === sIdle)
+  inst_q.io.deq.ready := (state === sIdle) && io.valid
 
 //   // data queue
 //   data_q.io.enq.bits.spCmd.data := io.me_rd.data.bits.data

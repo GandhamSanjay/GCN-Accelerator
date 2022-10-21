@@ -18,6 +18,8 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   val io = IO(new Bundle {
     val inst = Flipped(Decoupled(UInt(INST_BITS.W)))
     val me_rd = new MEReadMaster
+    val valid = Input(Bool())
+    val done = Output(Bool())
     val spWrite = Vec(cp.nScratchPadMem, Decoupled(new SPWriteCmd))
   })
   // Module instantiation
@@ -26,10 +28,11 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   val data_q = Module(new Queue(new SPWriteCmdWithSel, data_qEntries))
   val dec = Module(new LoadDecode)
   // state machine
-  val sIdle :: sStride :: sSeq :: sSeqCmd :: sSeqReadData ::Nil = Enum(5)
+  val sIdle :: sStride :: sSeq :: sSeqCmd :: sSeqReadData :: sDelay :: Nil = Enum(6)
   val state = RegInit(sIdle)
   val start = inst_q.io.deq.fire
-  val done = true.B
+  val done = RegInit(false.B)
+  io.done := done
   val inst = RegEnable(inst_q.io.deq.bits, start)
   val nBlockPerTransfer = mp.dataBits / 32
   val transferTotal = WireDefault((dec.io.xSize)-1.U >> log2Ceil(nBlockPerTransfer)) + 1.U
@@ -41,7 +44,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   val transferMaxSizeBytes = (mp.lenBits + 1) << log2Ceil(mp.dataBits / 8)
   val saddr = Reg(UInt(M_SRAM_OFFSET_BITS.W))
   val mask = UInt((mp.dataBits/32).W)
-
+  val delayCtr = RegInit(0.U(5.W))
 
   // instruction queue
   dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)
@@ -51,19 +54,25 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   // control
   switch(state) {
     is(sIdle) {
+      done := false.B
       when(start) {
         when(dec.io.isSeq){
           state := sSeqCmd
           raddr := dec.io.dramOffset
           saddr := dec.io.sramOffset
-          when(transferTotal < maxTransferPerReq){
-            rlen := transferTotal - 1.U
-            rlenRem := transferTotal - 1.U
-            transferRem := 0.U
+          when(dec.io.xSize === 0.U){
+            state := sDelay
+            delayCtr := 1.U
           }.otherwise{
-            rlen := maxTransferPerReq - 1.U
-            rlenRem := maxTransferPerReq - 1.U
-            transferRem := transferTotal - (maxTransferPerReq)
+            when(transferTotal < maxTransferPerReq){
+              rlen := transferTotal - 1.U
+              rlenRem := transferTotal - 1.U
+              transferRem := 0.U
+            }.otherwise{
+                rlen := maxTransferPerReq - 1.U
+                rlenRem := maxTransferPerReq - 1.U
+                transferRem := transferTotal - (maxTransferPerReq)
+            }
           }
         }.otherwise{
           state := sStride
@@ -82,6 +91,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
         saddr := saddr + (mp.dataBits/8).U
           when(rlenRem === 0.U){
             when(transferRem === 0.U){
+              done := true.B
               state := sIdle
             }.otherwise{
               state := sSeqCmd
@@ -102,8 +112,15 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
       }
     }
     is(sStride) {
-      when(done){
+      done := true.B
+      state := sIdle
+    }
+    is(sDelay){
+      when(delayCtr === 0.U){
+        done := true.B
         state := sIdle
+      }.otherwise{
+        delayCtr := delayCtr + 1.U
       }
     }
   }
@@ -111,7 +128,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
 
   // instructions
   inst_q.io.enq <> io.inst
-  inst_q.io.deq.ready := (state === sIdle)
+  inst_q.io.deq.ready := (state === sIdle) && io.valid
 
   // data queue
   data_q.io.enq.bits.spCmd.data := io.me_rd.data.bits.data
