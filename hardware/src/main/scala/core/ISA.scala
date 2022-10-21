@@ -41,6 +41,25 @@ trait ISAConstants {
  * TODO: Modify load/store/alu/gemm
  */
 object ISA {
+  val INST_BITS = 128
+  val OP_BITS = 2
+  val M_DEP_BITS = 4
+  val M_ID_BITS = 3
+  val M_DRAM_OFFSET_BITS = 32
+  val M_SRAM_OFFSET_BITS = 16
+  val M_XSIZE_BITS = 7
+  val M_YSIZE_BITS = 0
+  val C_DEP_BITS = 4
+  val C_SRAM_OFFSET_BITS = 16
+  val C_XSIZE_BITS = 7
+  val C_YSIZE_BITS = 0
+  val Y = true.B
+  val N = false.B
+  val OP_L = 0.asUInt(OP_BITS.W)
+  val OP_S = 1.asUInt(OP_BITS.W)
+  val OP_C = 2.asUInt(OP_BITS.W)
+  val OP_X = 3.asUInt(OP_BITS.W)
+
   private val xLen = 128
   private val depBits = 4
 
@@ -79,4 +98,6 @@ object ISA {
   def LDEN = load("den")
   def LOUT = load("out")
   def SPMM = spmm
+
+  
 }

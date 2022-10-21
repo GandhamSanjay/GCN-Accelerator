@@ -26,7 +26,6 @@ class SPWriteCmdWithSel(implicit p: Parameters) extends Bundle{
 }
 
 class SPWriteCmd(implicit p: Parameters) extends Bundle{
-  val M_SRAM_OFFSET_BITS = 16
   val mp = p(AccKey).memParams
   val addr = UInt(M_SRAM_OFFSET_BITS.W)
   val data = UInt(mp.dataBits.W)
@@ -34,9 +33,14 @@ class SPWriteCmd(implicit p: Parameters) extends Bundle{
 
 class SPReadCmd(implicit p: Parameters) extends Bundle{
   val cp = p(AccKey).coreParams
-  val M_SRAM_OFFSET_BITS = 16
   val addr = UInt(M_SRAM_OFFSET_BITS.W)
   val tag = UInt(log2Ceil(cp.nPE).W)
+}
+
+class SPReadCmdWithSel(implicit p: Parameters) extends Bundle{
+  val cp = p(AccKey).coreParams
+  val spReadCmd = new SPReadCmd
+  val spSel = UInt(cp.nScratchPadMem.W)
 }
 
 class SPReadData(implicit p: Parameters) extends Bundle{
