@@ -7,6 +7,7 @@ import chisel3.util._
 import vta.util.config._
 import os.write
 import gcn.core.util.MuxTree
+import ISA._
 
 
 /** Scratchpad Logic.
