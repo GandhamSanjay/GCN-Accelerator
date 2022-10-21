@@ -42,6 +42,9 @@ class inst:
      
 f = open('ram.txt','w')
 instGen = inst()
-f.write(instGen.randSpmm(count = 4))
+f.write(instGen.load(xsize = 0))
+f.write(instGen.randSpmm())
+f.write(instGen.load(xsize = 0))
+f.write(instGen.randSpmm())
 # for I in range(4):
 #     f.write(instGen.load(xsize = 64))
