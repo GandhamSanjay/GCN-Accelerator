@@ -42,7 +42,7 @@ class SPReadCmd(implicit p: Parameters) extends Bundle{
 class SPReadData(implicit p: Parameters) extends Bundle{
   val cp = p(AccKey).coreParams
   val mp = p(AccKey).memParams
-  val data = UInt(mp.dataBits.W)
+  val data = UInt(cp.scratchBankBlockSize.W)
   val tag = UInt(log2Ceil(cp.nPE).W)
 }
  
@@ -119,19 +119,18 @@ class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p
       ram(i).write(writeIdx, wdata((i+1)*bankBlockSize - 1, i*bankBlockSize))
     }
   }
-  when(readEn){
-    val raddrByteAlign =  (raddr >> log2Ceil(blockSize/8))
-    val bankSel = (raddrByteAlign)(log2Ceil(nBanks) - 1, 0)
-    val bankIdx = (raddrByteAlign) >> (log2Ceil(nBanks))
-    bankSelPrev := bankSel
-    tagPrevRead := rtag
-    for (i <- 0 until (nBanks)){
-      rdata(i) := ram(i).read(bankIdx, bankSel === i.U)
-    }
-  }.otherwise{
-    for (i <- 0 until (nBanks)){
-      rdata(i) := 0.U
-    }
+ 
+  val raddrByteAlign =  (raddr >> log2Ceil(bankBlockSize/8))
+  val bankSel = (raddrByteAlign)(log2Ceil(nBanks) - 1, 0)
+  val bankIdx = (raddrByteAlign) >> (log2Ceil(nBanks))
+  bankSelPrev := bankSel
+  tagPrevRead := rtag
+  for (i <- 0 until (nBanks)){
+    rdata(i) := ram(i).read(bankIdx, (bankSel === i.U) && readEn )
+  // }.otherwise{
+  //   for (i <- 0 until (nBanks)){
+  //     rdata(i) := 0.U
+  //   }
   }
   
 

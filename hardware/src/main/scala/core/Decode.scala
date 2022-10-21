@@ -39,30 +39,29 @@ class MemDecode extends Bundle{
   val op = UInt(OP_BITS.W)
 }
 
-// /** GemmDecode.
-//  *
-//  * Decode GEMM instruction with a Bundle. This is similar to an union,
-//  * therefore order matters when declaring fields.
-//  */
-// class GemmDecode extends Bundle {
-//   val wgt_1 = UInt(C_WIDX_BITS.W)
-//   val wgt_0 = UInt(C_WIDX_BITS.W)
-//   val inp_1 = UInt(C_IIDX_BITS.W)
-//   val inp_0 = UInt(C_IIDX_BITS.W)
-//   val acc_1 = UInt(C_AIDX_BITS.W)
-//   val acc_0 = UInt(C_AIDX_BITS.W)
-//   val empty_0 = Bool()
-//   val lp_1 = UInt(C_ITER_BITS.W)
-//   val lp_0 = UInt(C_ITER_BITS.W)
-//   val uop_end = UInt(C_UOP_END_BITS.W)
-//   val uop_begin = UInt(C_UOP_BGN_BITS.W)
-//   val reset = Bool()
-//   val push_next = Bool()
-//   val push_prev = Bool()
-//   val pop_next = Bool()
-//   val pop_prev = Bool()
-//   val op = UInt(OP_BITS.W)
-// }
+/** SpMMDecode.
+ *
+ * Decode GEMM instruction with a Bundle. This is similar to an union,
+ * therefore order matters when declaring fields.
+ */
+class SpMMDecode extends Bundle {
+  val C_SRAM_OFFSET_BITS = 16
+  val C_XSIZE_BITS = 7
+  val C_YSIZE_BITS = 7
+  val OP_BITS = 2
+
+  val empty = UInt(58.W)
+  val y_size = UInt(C_YSIZE_BITS.W)
+  val x_size = UInt(C_XSIZE_BITS.W)
+  val sram_offset_den = UInt(C_SRAM_OFFSET_BITS.W)
+  val sram_offset_ptr = UInt(C_SRAM_OFFSET_BITS.W)
+  val sram_offset_col_val = UInt(C_SRAM_OFFSET_BITS.W)
+  val push_next = Bool()
+  val push_prev = Bool()
+  val pop_next = Bool()
+  val pop_prev = Bool()
+  val op = UInt(OP_BITS.W)
+}
 
 // /** AluDecode.
 //  *
@@ -165,36 +164,26 @@ class LoadDecode extends Module with ISAConstants{
   io.dramOffset := dec.dram_offset
 }
 
-// /** ComputeDecode.
-//  *
-//  * Decode dependencies, type and sync for Compute module.
-//  */
-// class ComputeDecode extends Module {
-//   val io = IO(new Bundle {
-//     val inst = Input(UInt(INST_BITS.W))
-//     val push_next = Output(Bool())
-//     val push_prev = Output(Bool())
-//     val pop_next = Output(Bool())
-//     val pop_prev = Output(Bool())
-//     val isLoadAcc = Output(Bool())
-//     val isLoadUop = Output(Bool())
-//     val isSync = Output(Bool())
-//     val isAlu = Output(Bool())
-//     val isGemm = Output(Bool())
-//     val isFinish = Output(Bool())
-//   })
-//   val dec = io.inst.asTypeOf(new MemDecode)
-//   io.push_next := dec.push_next
-//   io.push_prev := dec.push_prev
-//   io.pop_next := dec.pop_next
-//   io.pop_prev := dec.pop_prev
-//   io.isLoadAcc := io.inst === LACC & dec.xsize =/= 0.U
-//   io.isLoadUop := io.inst === LUOP & dec.xsize =/= 0.U
-//   io.isSync := (io.inst === LACC | io.inst === LUOP) & dec.xsize === 0.U
-//   io.isAlu := io.inst === VMIN | io.inst === VMAX | io.inst === VADD | io.inst === VSHX
-//   io.isGemm := io.inst === GEMM
-//   io.isFinish := io.inst === FNSH
-// }
+/** ComputeDecode.
+ *
+ * Decode dependencies, type and sync for Compute module.
+ */
+class ComputeDecode extends Module with ISAConstants{
+  val io = IO(new Bundle {
+    val inst = Input(UInt(INST_BITS.W))
+    val sramColVal = Output(UInt(C_SRAM_OFFSET_BITS.W))
+    val sramPtr = Output(UInt(C_SRAM_OFFSET_BITS.W))
+    val sramDen = Output(UInt(C_SRAM_OFFSET_BITS.W))
+    val xSizeDen = Output(UInt(C_XSIZE_BITS.W))
+    val ySizeSp = Output(UInt(C_YSIZE_BITS.W))
+  })
+  val dec = io.inst.asTypeOf(new SpMMDecode)
+  io.sramColVal := dec.sram_offset_col_val
+  io.sramPtr := dec.sram_offset_ptr
+  io.sramDen := dec.sram_offset_den
+  io.xSizeDen := dec.x_size
+  io.ySizeSp := dec.y_size
+}
 
 // /** StoreDecode.
 //  *

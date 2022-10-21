@@ -133,7 +133,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   // data queue
   data_q.io.enq.bits.spCmd.data := io.me_rd.data.bits.data
   data_q.io.enq.bits.spSel := scratchSel
-  data_q.io.enq.bits.spCmd.addr := saddr + (mp.dataBits/8).U
+  data_q.io.enq.bits.spCmd.addr := saddr
   data_q.io.enq.valid := (state === sSeqReadData) && io.me_rd.data.valid
   
   // dram read

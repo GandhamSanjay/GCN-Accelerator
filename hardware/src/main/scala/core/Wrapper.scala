@@ -112,8 +112,8 @@ object DefaultTemplate extends App {
   val chiselStage = new chisel3.stage.ChiselStage
   chiselStage.execute(
     Array(
-      "-X", "verilog", 
-      "-e", "verilog", 
+      "-X", "mverilog", 
+      "-e", "mverilog", 
       "--target-dir", "verilog"), 
     Seq(ChiselGeneratorAnnotation(() => new Wrapper()))
   )

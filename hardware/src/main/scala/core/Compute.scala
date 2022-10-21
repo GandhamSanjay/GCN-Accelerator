@@ -22,31 +22,27 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   })
 //   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
-//   val data_qEntries = (1 << mp.lenBits)
-//   val data_q = Module(new Queue(new SPWriteCmdWithSel, data_qEntries))
-//   val dec = Module(new LoadDecode)
+  val req_q = Module(new Queue(new SPReadCmd, 5)) // change entry count
+  val data_q = Module(new Queue(new SPReadData, 5)) // change entry count
+  val dec = Module(new ComputeDecode)
 //   // state machine
-  val sIdle :: sBusy :: sDone ::Nil = Enum(3)
+  val sIdle :: sReadCmd :: sReadData :: sDone :: Nil = Enum(4)
   val state = RegInit(sIdle)
   val start = inst_q.io.deq.fire
-  val delayCtr = RegInit(0.U(5.W))
+  val ctr = RegInit(0.U(5.W))
   val done = RegInit(0.U(1.W))
   io.done := done
-//   val done = true.B
-//   val inst = RegEnable(inst_q.io.deq.bits, start)
-//   val nBlockPerTransfer = mp.dataBits / 32
-//   val transferTotal = WireDefault((dec.io.xSize)-1.U >> log2Ceil(nBlockPerTransfer)) + 1.U
-//   val transferRem = Reg(chiselTypeOf(dec.io.xSize))
-//   val maxTransferPerReq = (1 << mp.lenBits).U
-//   val raddr = Reg(chiselTypeOf(io.me_rd.cmd.bits.addr))
-//   val rlen = Reg(chiselTypeOf(io.me_rd.cmd.bits.len))
-//   val rlenRem = Reg(chiselTypeOf(io.me_rd.cmd.bits.len))
-//   val transferMaxSizeBytes = (mp.lenBits + 1) << log2Ceil(mp.dataBits / 8)
-//   val saddr = Reg(UInt(M_SRAM_OFFSET_BITS.W))
-//   val mask = UInt((mp.dataBits/32).W)
+
+  val inst = RegEnable(inst_q.io.deq.bits, start)
+  val saddr = Reg(UInt(M_SRAM_OFFSET_BITS.W))
+  val sdata = Reg(chiselTypeOf(data_q.io.deq.bits.data))
+  val blockSizeBytes = (cp.blockSize/8)
+  val spSel = RegInit(0.U(cp.nScratchPadMem))
+  val stag = Reg(chiselTypeOf(req_q.io.enq.bits.tag))
+
 
 // tie-off
-  for(i <- 0 until cp.nScratchPadMem){
+  for(i <- 0 until cp.nScratchPadMem-1){
     io.spReadCmd(i).valid := false.B
     io.spReadCmd(i).bits.tag := 0.U
     io.spReadCmd(i).bits.addr := 0.U
@@ -55,24 +51,36 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
 
 
 //   // instruction queue
-//   dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)
-
-//   val scratchSel = Cat(dec.io.isCol, dec.io.isPtr, !dec.io.isSeq, dec.io.isVal) // col,ptr,den,val
+  dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)
 
   // control
   switch(state) {
     is(sIdle) {
       done := 0.U
       when(start) {
-        state := sBusy
-        delayCtr := 1.U
+        state := sReadCmd
+        saddr := dec.io.sramColVal
+        stag := 0.U
+        ctr := 1.U
+        spSel := (1.U << 3)
       }
     }
-    is(sBusy){
-      when(delayCtr === 0.U){
-        state := sDone
-      }.otherwise{
-        delayCtr := delayCtr + 1.U
+    is(sReadCmd){
+      when(req_q.io.enq.ready){
+        state := sReadData
+      }
+    }
+    is(sReadData){
+      when(data_q.io.deq.valid){
+        saddr := saddr + blockSizeBytes.U
+        sdata := data_q.io.deq.bits.data
+        spSel := (1.U << 3)
+        when(ctr === dec.io.xSizeDen){
+          state := sDone
+        }.otherwise{
+          state := sReadCmd
+          ctr := ctr + 1.U
+        }
       }
     }
     is(sDone){
@@ -81,29 +89,26 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     }
   }
 
+  req_q.io.enq.bits.addr := saddr
+  req_q.io.enq.bits.tag := stag
+  req_q.io.enq.valid := state === sReadCmd
+  data_q.io.deq.ready := state === sReadData
+
+  assert((sdata(0)===0.U))
 
 //   // instructions
   inst_q.io.enq <> io.inst
   inst_q.io.deq.ready := (state === sIdle) && io.valid
 
-//   // data queue
-//   data_q.io.enq.bits.spCmd.data := io.me_rd.data.bits.data
-//   data_q.io.enq.bits.spSel := scratchSel
-//   data_q.io.enq.bits.spCmd.addr := saddr + (mp.dataBits/8).U
-//   data_q.io.enq.valid := (state === sSeqReadData) && io.me_rd.data.valid
-  
-//   // dram read
-//   io.me_rd.cmd.bits.len := rlen
-//   io.me_rd.cmd.bits.tag := dec.io.sramOffset
-//   io.me_rd.cmd.bits.addr := raddr
-//   io.me_rd.cmd.valid := (state === sSeqCmd) && (data_q.io.count === 0.U)
-//   io.me_rd.data.ready := true.B
+  // Read req Queue and read data queue to 3rd scratchpad
+    io.spReadCmd(3).bits := req_q.io.deq.bits
+    io.spReadCmd(3).valid := req_q.io.deq.valid
+    req_q.io.deq.ready := io.spReadCmd(3).ready
 
-//   // Data Write Queue to multiple scratchpad
-//   for(i <- 0 until cp.nScratchPadMem){
-//     io.spWrite(i).bits := data_q.io.deq.bits.spCmd
-//     io.spWrite(i).valid := data_q.io.deq.bits.spSel(i) && data_q.io.deq.valid
-//     data_q.io.deq.ready := data_q.io.deq.bits.spSel(i) && io.spWrite(i).ready 
-//   }
+    data_q.io.deq.ready := (state === sReadData) 
+
+    data_q.io.enq.bits := io.spReadData(3).bits
+    data_q.io.enq.valid := io.spReadData(3).valid
+    io.spReadData(3).ready := data_q.io.enq.ready 
 
 }
