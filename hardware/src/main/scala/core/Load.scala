@@ -56,7 +56,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
     is(sIdle) {
       done := false.B
       when(start) {
-        when(dec.io.isSeq){
+        when(dec.io.isSeq || !dec.io.isSeq){
           state := sSeqCmd
           raddr := dec.io.dramOffset
           saddr := dec.io.sramOffset
@@ -147,7 +147,10 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   for(i <- 0 until cp.nScratchPadMem){
     io.spWrite(i).bits := data_q.io.deq.bits.spCmd
     io.spWrite(i).valid := data_q.io.deq.bits.spSel(i) && data_q.io.deq.valid
-    data_q.io.deq.ready := data_q.io.deq.bits.spSel(i) && io.spWrite(i).ready 
   }
 
+  data_q.io.deq.ready := (for(i <- 0 until cp.nScratchPadMem) yield {
+    data_q.io.deq.bits.spSel(i) && io.spWrite(i).ready
+  }).reduce(_||_)
+  
 }
