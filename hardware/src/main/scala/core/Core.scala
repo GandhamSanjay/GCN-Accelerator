@@ -87,7 +87,11 @@ class Core(implicit p: Parameters) extends Module {
     }
     is(sLoad){
       when(load.io.done){
-        state := sCompute
+        when(ctr === 4.U){
+          state := sCompute
+        }.otherwise{
+          state := sLoad
+        }
       }
     }
     is(sCompute){

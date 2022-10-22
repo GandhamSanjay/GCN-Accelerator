@@ -99,5 +99,7 @@ object ISA {
   def LOUT = load("out")
   def SPMM = spmm
 
+  val scratchID = 
+      HashMap(("Col", 8), ("Val", 1), ("Ptr", 4), ("Den", 2))
   
 }

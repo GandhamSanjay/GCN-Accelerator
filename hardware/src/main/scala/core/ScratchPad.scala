@@ -38,6 +38,17 @@ class SPReadCmd(implicit p: Parameters) extends Bundle{
   val tag = UInt(log2Ceil(cp.nPE).W)
 }
 
+class SPReadCmdNoTag(implicit p: Parameters) extends Bundle{
+  val cp = p(AccKey).coreParams
+  val addr = UInt(M_SRAM_OFFSET_BITS.W)
+}
+
+class SPReadCmdNoTagWithSel(implicit p: Parameters) extends Bundle{
+  val cp = p(AccKey).coreParams
+  val spReadCmd = new SPReadCmdNoTag
+  val spSel = UInt(cp.nScratchPadMem.W)
+}
+
 class SPReadCmdWithSel(implicit p: Parameters) extends Bundle{
   val cp = p(AccKey).coreParams
   val spReadCmd = new SPReadCmd
@@ -49,6 +60,12 @@ class SPReadData(implicit p: Parameters) extends Bundle{
   val mp = p(AccKey).memParams
   val data = UInt(cp.scratchBankBlockSize.W)
   val tag = UInt(log2Ceil(cp.nPE).W)
+}
+
+class SPReadDataNoTag(implicit p: Parameters) extends Bundle{
+  val cp = p(AccKey).coreParams
+  val mp = p(AccKey).memParams
+  val data = UInt(cp.scratchBankBlockSize.W)
 }
  
 class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p: Parameters)extends Module with ISAConstants{
