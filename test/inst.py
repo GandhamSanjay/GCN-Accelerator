@@ -11,7 +11,7 @@ class inst:
 ### Generates load instructions for GCN-Accelerator
 
     def load(self,  dep = '0000', id = 'col', sram_offset = 0, dram_offset = 0, xsize = 0, ysize = 0):
-        idMap = {'col': '000','idx': '001', 'val': '010', 'den': '011', 'out': '100'}
+        idMap = {'col': '000','ptr': '001', 'val': '010', 'den': '011', 'out': '100'}
         op = '00'
         logging.debug(f"Creating load with \ndep = {dep}\nid = {id}\nsram offset = {sram_offset}\ndram offset = {dram_offset}\
         \nxsize = {xsize}\nysize = {ysize}")
@@ -53,8 +53,9 @@ class inst:
 f = open('ram.txt','w')
 instGen = inst()
 f.write(instGen.load(xsize = 16))
-f.write(instGen.spMM(xsize = 16))
-# f.write(instGen.load(xsize = 0))
-# f.write(instGen.spMM())
+f.write(instGen.load(xsize = 16, id = 'val'))
+f.write(instGen.load(xsize = 16, id = 'ptr'))
+f.write(instGen.load(xsize = 16, id = 'den'))
+f.write(instGen.spMM())
 # for I in range(4):
 #     f.write(instGen.load(xsize = 64))
