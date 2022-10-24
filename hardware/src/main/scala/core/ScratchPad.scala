@@ -58,14 +58,14 @@ class SPReadCmdWithSel(implicit p: Parameters) extends Bundle{
 class SPReadData(implicit p: Parameters) extends Bundle{
   val cp = p(AccKey).coreParams
   val mp = p(AccKey).memParams
-  val data = UInt(cp.scratchBankBlockSize.W)
+  val data = UInt(cp.blockSize.W)
   val tag = UInt(log2Ceil(cp.nPE).W)
 }
 
 class SPReadDataNoTag(implicit p: Parameters) extends Bundle{
   val cp = p(AccKey).coreParams
   val mp = p(AccKey).memParams
-  val data = UInt(cp.scratchBankBlockSize.W)
+  val data = UInt(cp.blockSize.W)
 }
  
 class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p: Parameters)extends Module with ISAConstants{
@@ -95,6 +95,7 @@ class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p
   isReadEmpty := true.B
 
   // Write req/data queue
+  val rdataSliced = Wire(UInt(cp.blockSize.W))
   val write_q = Module(new Queue(new SPWriteCmd, 10))
   write_q.io.enq <> io.spWrite
   io.out := (write_q.io.count === 0.U)
@@ -116,7 +117,7 @@ class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p
   val tagPrevRead = Reg(chiselTypeOf(readData_q.io.deq.bits.tag))
   readEn := readCmd_q.io.deq.fire
   readData_q.io.enq.valid := RegNext(readEn)
-  readData_q.io.enq.bits.data := MuxTree(bankSelPrev, rdata)
+  readData_q.io.enq.bits.data := rdataSliced
   readData_q.io.enq.bits.tag := tagPrevRead
   // // Banked Read req/data queue
   // val read_qSeq = Seq.fill(nBanks) {Module(new Queue(new SPReadCmd, 10))}
@@ -145,6 +146,8 @@ class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p
   val raddrByteAlign =  (raddr >> log2Ceil(bankBlockSize/8))
   val bankSel = (raddrByteAlign)(log2Ceil(nBanks) - 1, 0)
   val bankIdx = (raddrByteAlign) >> (log2Ceil(nBanks))
+  val rdataSel = (RegNext(raddr) >> log2Ceil(blockSize/8))(log2Ceil(bankBlockSize/blockSize)-1,0)
+  rdataSliced := (MuxTree(bankSelPrev, rdata) >> (rdataSel << log2Ceil(blockSize)))(cp.blockSize - 1, 0)
   bankSelPrev := bankSel
   tagPrevRead := rtag
   for (i <- 0 until (nBanks)){

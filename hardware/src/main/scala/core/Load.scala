@@ -34,7 +34,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   val done = RegInit(false.B)
   io.done := done
   val inst = RegEnable(inst_q.io.deq.bits, start)
-  val nBlockPerTransfer = mp.dataBits / 32
+  val nBlockPerTransfer = mp.dataBits / cp.blockSize
   val transferTotal = WireDefault((dec.io.xSize)-1.U >> log2Ceil(nBlockPerTransfer)) + 1.U
   val transferRem = Reg(chiselTypeOf(dec.io.xSize))
   val maxTransferPerReq = (1 << mp.lenBits).U
@@ -43,7 +43,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   val rlenRem = Reg(chiselTypeOf(io.me_rd.cmd.bits.len))
   val transferMaxSizeBytes = (mp.lenBits + 1) << log2Ceil(mp.dataBits / 8)
   val saddr = Reg(UInt(M_SRAM_OFFSET_BITS.W))
-  val mask = UInt((mp.dataBits/32).W)
+  val mask = UInt((mp.dataBits/cp.blockSize).W)
   val delayCtr = RegInit(0.U(5.W))
 
   // instruction queue

@@ -48,7 +48,7 @@ class Core(implicit p: Parameters) extends Module {
 
   val sIdle :: sLoad :: sCompute :: sFinish :: Nil = Enum(4)
   val state = RegInit(sIdle)
-  val ctr = RegInit(0.U(1.W))
+  val ctr = RegInit(0.U(3.W))
   compute.io.valid := (state === sCompute) && !compute.io.done
   load.io.valid := (state === sLoad) && !load.io.done
 
@@ -91,6 +91,7 @@ class Core(implicit p: Parameters) extends Module {
           state := sCompute
         }.otherwise{
           state := sLoad
+          ctr := ctr + 1.U
         }
       }
     }

@@ -50,7 +50,7 @@ class SpMMDecode extends Bundle {
   val C_YSIZE_BITS = 7
   val OP_BITS = 2
 
-  val empty = UInt(58.W)
+  val empty = UInt(60.W)
   val y_size = UInt(C_YSIZE_BITS.W)
   val x_size = UInt(C_XSIZE_BITS.W)
   val sram_offset_den = UInt(C_SRAM_OFFSET_BITS.W)

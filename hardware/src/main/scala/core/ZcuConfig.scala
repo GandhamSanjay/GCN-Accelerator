@@ -28,13 +28,14 @@ case class CoreParams(
   val computeInstQueueEntries: Int = 1,
   val loadDataQueueEntries: Int = 1,
   val Compression: String = "CSR",
-  val scratchColSize: Int = 1024,
-  val scratchDenSize: Int = 1024,
-  val scratchValSize: Int = 1024,
-  val scratchPtrSize: Int = 1024,
+  val scratchColSize: Int = 1024*8,
+  val scratchDenSize: Int = 1024*8,
+  val scratchValSize: Int = 1024*8,
+  val scratchPtrSize: Int = 1024*8,
   val blockSize: Int = 32,
   val scratchBankBlockSize: Int = 128,
-  val nPE: Int = 1
+  val nPE: Int = 1,
+  val nBanks: Int = 1
 ) {
   require(loadInstQueueEntries > 0, "instQueueEntries must be atleast 1")
   require(loadDataQueueEntries > 0, "dataQueueEntries must be atleast 1")

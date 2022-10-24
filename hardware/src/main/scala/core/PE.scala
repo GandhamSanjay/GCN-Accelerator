@@ -26,17 +26,18 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
   val io = IO(new Bundle {
-    val peReq = Decoupled(new PECSRIO)
-    val spReadCmd = Decoupled(new SPReadCmdNoTagWithSel)
-    val spData = Decoupled(new SPReadDataNoTag)
+    val peReq = Flipped(Decoupled(new PECSRIO))
+    val spReadCmd = Decoupled(new SPReadCmdWithSel)
+    val spData = Flipped(Decoupled(new SPReadData))
   })
+
 
   val blockSizeBytes = (cp.blockSize/8)
 
   // Registers 
   val sSel = RegInit(0.U(cp.nScratchPadMem.W))
   val sAddr = RegInit(0.U(C_SRAM_OFFSET_BITS.W))
-  val sValid = Bool()
+  val sValid = Reg(Bool())
   val ptrStartIdx = RegInit(0.U(32.W))
   val ptrEndIdx = RegInit(0.U(32.W))
   val ptrCurr = RegInit(0.U(32.W))
@@ -48,13 +49,15 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val denCol = RegInit(0.U(32.W))
 
   // state machine
-  val sIdle :: sReadCmd :: sRowPtr :: sRowPtr2 :: sVal :: sCol :: sDen ::sDone :: Nil = Enum(6)
+  val sIdle :: sReadCmd :: sRowPtr :: sRowPtr2 :: sVal :: sCol :: sDen ::sDone :: Nil = Enum(8)
   val state = RegInit(sIdle)
   val stateNext = RegInit(sIdle)
-  val start = io.peReq.fire
   io.peReq.ready := (state === sIdle)
+  val start = io.peReq.fire
+  val peReq_q = RegEnable(io.peReq.bits, start)
 
   val rowPtrAddr = io.peReq.bits.sramPtr + ((io.peReq.bits.rowIdx) << log2Ceil(cp.blockSize/8))
+  val rowPtrAddr_q = peReq_q.sramPtr + ((peReq_q.rowIdx) << log2Ceil(cp.blockSize/8))
 
   switch(state){
     is(sIdle){
@@ -77,7 +80,7 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
     is(sRowPtr){
       when(io.spData.fire){
         ptrStartIdx := io.spData.bits.data
-        sAddr := rowPtrAddr + blockSizeBytes.U
+        sAddr := rowPtrAddr_q + blockSizeBytes.U
         sSel := scratchID("Ptr").U
         state := sReadCmd
         stateNext := sRowPtr2
@@ -89,7 +92,7 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
         when((io.spData.bits.data - ptrStartIdx) === 0.U){
           state := sIdle
         }.otherwise{
-          sAddr := io.peReq.bits.sramColVal + (ptrStartIdx << log2Ceil(blockSizeBytes))
+          sAddr := peReq_q.sramColVal + (ptrStartIdx << log2Ceil(blockSizeBytes))
           ptrCurr := ptrStartIdx
           sSel := scratchID("Val").U
           state := sReadCmd
@@ -107,7 +110,7 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
     }
     is(sCol){
       when(io.spData.fire){
-        sAddr := io.peReq.bits.sramDen + ((io.spData.bits.data << (Log2(io.peReq.bits.denXSize)) + denCol) << log2Ceil(blockSizeBytes))
+        sAddr := peReq_q.sramDen + (((io.spData.bits.data << (Log2(peReq_q.denXSize))) + denCol) << log2Ceil(blockSizeBytes))
         colCurr := io.spData.bits.data
         sSel := scratchID("Den").U
         state := sReadCmd
@@ -119,11 +122,12 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
       when(io.spData.fire){
         acc := acc + (io.spData.bits.data * valCurr)
         when(ptrCurr === ptrEndIdx){
-          when(denCol === io.peReq.bits.denXSize - 1.U){
+          when(denCol === peReq_q.denXSize - 1.U){
             state := sIdle
           }.otherwise{
+            acc := 0.U
             denCol := denCol + 1.U
-            sAddr := io.peReq.bits.sramColVal + (ptrStartIdx << log2Ceil(blockSizeBytes))
+            sAddr := peReq_q.sramColVal + (ptrStartIdx << log2Ceil(blockSizeBytes))
             ptrCurr := ptrStartIdx
             sSel := scratchID("Val").U
             state := sReadCmd
@@ -131,7 +135,7 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
           }
           
         }.otherwise{
-          sAddr := io.peReq.bits.sramColVal + (ptrCurr << log2Ceil(blockSizeBytes))
+          sAddr := peReq_q.sramColVal + (ptrCurr << log2Ceil(blockSizeBytes))
           sSel := scratchID("Val").U
           state := sReadCmd
           stateNext := sVal
@@ -140,10 +144,11 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
     }
   }
 
-  assert(acc === (1<<20).U)
+  assert(acc =/= (1<<20).U)
 
   io.spReadCmd.bits.spReadCmd.addr := sAddr
   io.spReadCmd.bits.spSel := sSel 
   io.spReadCmd.valid := (state === sReadCmd)
   io.spData.ready := true.B
+  io.spReadCmd.bits.spReadCmd.tag := 0.U
 }
