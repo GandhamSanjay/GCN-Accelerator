@@ -64,5 +64,5 @@ class TB(object):
 async def my_first_test(dut):
     """Try accessing the design."""
     tb = TB(dut)
-    await tb.launch(inst_cnt = 4)
+    await tb.launch(inst_cnt = 8)
     await Timer(10000, units='ns')
