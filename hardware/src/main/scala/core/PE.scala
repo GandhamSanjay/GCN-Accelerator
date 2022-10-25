@@ -20,17 +20,46 @@ class PECSRIO(implicit p: Parameters) extends Bundle{
 // /** Processing Element.
 //  *
 //  * Takes instructions from fetch module. Schedules computation between PEs.
-//  * Arbitrates communication betwen PE and scratchpads.
+//  * Each PE instantiates each scratchpad buffer
 //  */
 class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with ISAConstants{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
   val io = IO(new Bundle {
     val peReq = Flipped(Decoupled(new PECSRIO))
-    val spReadCmd = Decoupled(new SPReadCmdWithSel)
-    val spData = Flipped(Decoupled(new SPReadData))
+    val spWrite = Vec(cp.nScratchPadMem, Flipped(Decoupled(new SPWriteCmd)))
   })
 
+  val writeEnVec = Vec(cp.nScratchPadMem, Wire(Bool()))
+  val readCmdVec = Vec(cp.nScratchPadMem, new SPReadCmd)
+  val readDataVec = Vec(cp.nScratchPadMem, new SPReadData)
+
+  for(i <- 0 until cp.nScratchPadMem){
+    io.spWrite(i).ready := true.B
+    writeEnVec(i) := io.spWrite(i).fire
+  }
+
+  // Scratchpad Instantiation
+  val spVal = Module(new Scratchpad(scratchType = "Val"))
+  val spCol = Module(new Scratchpad(scratchType = "Col"))
+  val spPtr = Module(new Scratchpad(scratchType = "Ptr"))
+  val spDen = Module(new Scratchpad(scratchType = "Den"))
+  io.spWrite(0)  <> spVal.io.spWrite
+  readCmdVec(0)  <> spVal.io.spReadCmd
+  readDataVec(0) <> spVal.io.spReadData
+  writeEnVec(0)  <> spVal.io.writeEn
+  io.spWrite(1)  <> spDen.io.spWrite
+  readCmdVec(1)  <> spDen.io.spReadCmd
+  readDataVec(1) <> spDen.io.spReadData
+  writeEnVec(1)  <> spDen.io.writeEn
+  io.spWrite(2)  <> spPtr.io.spWrite
+  readCmdVec(2)  <> spPtr.io.spReadCmd
+  readDataVec(2) <> spPtr.io.spReadData
+  writeEnVec(2)  <> spPtr.io.writeEn
+  io.spWrite(3)  <> spCol.io.spWrite
+  readCmdVec(3)  <> spCol.io.spReadCmd
+  readDataVec(3) <> spCol.io.spReadData
+  writeEnVec(3)  <> spCol.io.writeEn
 
   val blockSizeBytes = (cp.blockSize/8)
 
@@ -44,12 +73,11 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val valCurr = RegInit(0.U(cp.blockSize.W))
   val colCurr = RegInit(0.U(32.W))
   val macCount = RegInit(0.U(32.W)) 
-  val nonZero = ptrEndIdx - ptrStartIdx
   val acc = RegInit(0.U(cp.blockSize.W))
   val denCol = RegInit(0.U(32.W))
 
   // state machine
-  val sIdle :: sReadCmd :: sRowPtr :: sRowPtr2 :: sVal :: sCol :: sDen ::sDone :: Nil = Enum(8)
+  val sIdle :: sRowPtr1 :: sRowPtr2 :: sCol :: sMAC:: sOut :: Nil = Enum(8)
   val state = RegInit(sIdle)
   val stateNext = RegInit(sIdle)
   io.peReq.ready := (state === sIdle)
@@ -59,96 +87,39 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val rowPtrAddr = io.peReq.bits.sramPtr + ((io.peReq.bits.rowIdx) << log2Ceil(cp.blockSize/8))
   val rowPtrAddr_q = peReq_q.sramPtr + ((peReq_q.rowIdx) << log2Ceil(cp.blockSize/8))
 
+  val rowPtrSPAddr = Mux(start,rowPtrAddr, rowPtrAddr_q)
+  val rowPtrSPAddrNext = rowPtrSPAddr + 1.U
+  val rowPtr1Data = Reg(UInt(32.W))
+  val rowPtr2Data = Reg(UInt(32.W))
+  val nonZeroInRow = Mux((state === sRowPtr2), spPtr.io.spReadData.data - rowPtr1Data, rowPtr2Data - rowPtr1Data)
+
+  val SPValid = Wire(Bool())
+  val SPAddr = Wire(chiselTypeOf((new SPReadCmd).addr))
+  SPValid := ((state === sIdle) && start)
+  SPAddr := (state === sIdle) && start
+
   switch(state){
     is(sIdle){
       when(start){
-        acc := 0.U
-        sAddr := rowPtrAddr
-        sSel := scratchID("Ptr").U
-        state := sReadCmd
-        stateNext := sRowPtr
-      }.otherwise{
-        sValid := false.B
-        state := sIdle
+        state := sRowPtr1
       }
     }
-    is(sReadCmd){
-      when(io.spReadCmd.ready){
-        state := stateNext
-      }
-    }
-    is(sRowPtr){
-      when(io.spData.fire){
-        ptrStartIdx := io.spData.bits.data
-        sAddr := rowPtrAddr_q + blockSizeBytes.U
-        sSel := scratchID("Ptr").U
-        state := sReadCmd
-        stateNext := sRowPtr2
-      }
+    is(sRowPtr1){
+      state := sRowPtr2
+      rowPtr1Data := spPtr.io.spReadData.data
     }
     is(sRowPtr2){
-      when(io.spData.fire){
-        ptrEndIdx := io.spData.bits.data
-        when((io.spData.bits.data - ptrStartIdx) === 0.U){
-          state := sIdle
-        }.otherwise{
-          sAddr := peReq_q.sramColVal + (ptrStartIdx << log2Ceil(blockSizeBytes))
-          ptrCurr := ptrStartIdx
-          sSel := scratchID("Val").U
-          state := sReadCmd
-          stateNext := sVal
-        }
-      }
-    }
-    is(sVal){
-      when(io.spData.fire){
-        valCurr := io.spData.bits.data
-        sSel := scratchID("Col").U
-        state := sReadCmd
-        stateNext := sCol
-      }
+      state := sCol
+      rowPtr2Data := spPtr.io.spReadData.data
     }
     is(sCol){
-      when(io.spData.fire){
-        sAddr := peReq_q.sramDen + (((io.spData.bits.data << (Log2(peReq_q.denXSize))) + denCol) << log2Ceil(blockSizeBytes))
-        colCurr := io.spData.bits.data
-        sSel := scratchID("Den").U
-        state := sReadCmd
-        stateNext := sDen
-        ptrCurr := ptrCurr + 1.U
-      }
+      state := sMAC
     }
-    is(sDen){
-      when(io.spData.fire){
-        acc := acc + (io.spData.bits.data * valCurr)
-        when(ptrCurr === ptrEndIdx){
-          when(denCol === peReq_q.denXSize - 1.U){
-            state := sIdle
-          }.otherwise{
-            acc := 0.U
-            denCol := denCol + 1.U
-            sAddr := peReq_q.sramColVal + (ptrStartIdx << log2Ceil(blockSizeBytes))
-            ptrCurr := ptrStartIdx
-            sSel := scratchID("Val").U
-            state := sReadCmd
-            stateNext := sVal
-          }
-          
-        }.otherwise{
-          sAddr := peReq_q.sramColVal + (ptrCurr << log2Ceil(blockSizeBytes))
-          sSel := scratchID("Val").U
-          state := sReadCmd
-          stateNext := sVal
-        }
-      }
+    is(sMAC){
+      state := sOut
+    }
+    is(sOut){
+      state := sIdle
     }
   }
-
-  assert(acc =/= (1<<20).U)
-
-  io.spReadCmd.bits.spReadCmd.addr := sAddr
-  io.spReadCmd.bits.spSel := sSel 
-  io.spReadCmd.valid := (state === sReadCmd)
-  io.spData.ready := true.B
-  io.spReadCmd.bits.spReadCmd.tag := 0.U
 }
