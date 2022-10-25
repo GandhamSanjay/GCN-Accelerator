@@ -11,4 +11,4 @@
 - **Loop Order :** K-> N -> M for computation of O[K][N] += I[K][M] * W[M][N]
 
 ## Overall Structure
-![alt text](https://github.com/GandhamSanjay/GCN-Accelerator/blob/main/GCN Acclerator.png)
+![alt text](https://github.com/GandhamSanjay/GCN-Accelerator/blob/main/GCN.png)
