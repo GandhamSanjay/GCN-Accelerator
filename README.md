@@ -7,8 +7,8 @@
 - Supports only 1 PE
 
 ## Configuration
-**Compression:** CSR
-**Loop Order :** K-> N -> M for computation of O[K][N] += I[K][M] * W[M][N]
+- **Compression:** CSR
+- **Loop Order :** K-> N -> M for computation of O[K][N] += I[K][M] * W[M][N]
 
 ## Overall Structure
 ![alt text](https://github.com/GandhamSanjay/GCN-Accelerator/blob/main/POCGCN.jpg)
