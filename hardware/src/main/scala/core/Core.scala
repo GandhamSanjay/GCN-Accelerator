@@ -24,25 +24,7 @@ class Core(implicit p: Parameters) extends Module {
   val compute = Module(new Compute)
   val start = Wire(Bool())
 
-  // ScratchPad Instantiation
-  if(cp.Compression == "CSR"){
-    val spVal = Module(new Scratchpad(scratchType = "Val"))
-    val spCol = Module(new Scratchpad(scratchType = "Col"))
-    val spPtr = Module(new Scratchpad(scratchType = "Ptr"))
-    val spDen = Module(new Scratchpad(scratchType = "Den"))
-    load.io.spWrite(0) <> spVal.io.spWrite
-    load.io.spWrite(1) <> spDen.io.spWrite
-    load.io.spWrite(2) <> spPtr.io.spWrite
-    load.io.spWrite(3) <> spCol.io.spWrite
-    compute.io.spReadCmd(0) <> spVal.io.spReadCmd
-    compute.io.spReadData(0) <> spVal.io.spReadData
-    compute.io.spReadCmd(1) <> spDen.io.spReadCmd
-    compute.io.spReadData(1) <> spDen.io.spReadData
-    compute.io.spReadCmd(2) <> spPtr.io.spReadCmd
-    compute.io.spReadData(2) <> spPtr.io.spReadData
-    compute.io.spReadCmd(3) <> spCol.io.spReadCmd
-    compute.io.spReadData(3) <> spCol.io.spReadData
-  }
+  compute.io.spWrite <> load.io.spWrite
 
   start := io.cr.launch
 
@@ -98,6 +80,7 @@ class Core(implicit p: Parameters) extends Module {
     is(sCompute){
       when(compute.io.done){
         state := sLoad
+        ctr := 0.U
       }
     }
     is(sFinish){

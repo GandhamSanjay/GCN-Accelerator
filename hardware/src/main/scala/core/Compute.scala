@@ -16,78 +16,91 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val cp = p(AccKey).coreParams
   val io = IO(new Bundle {
     val inst = Flipped(Decoupled(UInt(INST_BITS.W)))
-    val spReadCmd = Vec(cp.nScratchPadMem, Decoupled(new SPReadCmd))
-    val spReadData = Vec(cp.nScratchPadMem, Flipped(Decoupled(new SPReadData)))
+    val spWrite = Vec(cp.nScratchPadMem, Flipped(Decoupled(new SPWriteCmd)))
     val valid = Input(Bool())
     val done = Output(Bool())
   })
 //   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
-  // val req_q = Module(new Queue(new SPReadCmd, 5)) // change entry count
-  // val data_q = Module(new Queue(new SPReadData, 5)) // change entry count
   val dec = Module(new ComputeDecode)
-  val peArray = for (i <- 0 until 1) yield {
+  val peArray = for (i <- 0 until cp.nPE) yield {
     Module(new PECSR)
   } 
 
+  var peIsFree = (peArray(0).io.peReq.ready && !peArray(0).io.peReq.valid)
+  var peFree = peIsFree
+  var peAllFree = peIsFree
+  var peFreeCount = peIsFree
+
   // PE stuff for more than 1 in number
-  val peIsFree = (for (i <- 0 until cp.nPE) yield {
-    (peArray(i).io.peReq.ready && !peArray(i).io.peReq.valid)
-  }).reduce(_||_)
-  val peFree = (for (i <- 0 until cp.nPE) yield {
-    (peArray(i).io.peReq.ready && !peArray(i).io.peReq.valid).asUInt
-  }).reduce(Cat(_,_))
-  val peAllFree = (for (i <- 0 until cp.nPE) yield {
-    peArray(i).io.peReq.ready && !peArray(i).io.peReq.valid
-  }).reduce(_&&_)
-  val peFreeCount = PopCount(peFree)
-  // val peFreeID = PriorityEncoder(peFree)
+  if(cp.nPE > 1){
+     peIsFree := (for (i <- 0 until cp.nPE) yield {
+    (peArray(i).io.peReq.ready)
+    }).reduce(_||_)
+     peFree := (for (i <- 0 until cp.nPE) yield {
+      (peArray(i).io.peReq.ready).asUInt
+    }).reduce(Cat(_,_))
+     peAllFree := (for (i <- 0 until cp.nPE) yield {
+      peArray(i).io.peReq.ready
+    }).reduce(_&&_)
+     peFreeCount := PopCount(peFree)
+  }
+ 
 
   // state machine
   val sIdle :: sAssign :: sWait :: sDone :: Nil = Enum(4)
   val state = RegInit(sIdle)
   val start = inst_q.io.deq.fire
   val ctr = RegInit(0.U(5.W))
-  val done = RegInit(0.U(1.W))
-  io.done := done
 
   val inst = RegEnable(inst_q.io.deq.bits, start)
-  val saddr = Reg(UInt(M_SRAM_OFFSET_BITS.W))
-  // val sdata = Reg(chiselTypeOf(data_q.io.deq.bits.data))
   val blockSizeBytes = (cp.blockSize/8)
-  val spSel = RegInit(0.U(cp.nScratchPadMem))
-  // val stag = Reg(chiselTypeOf(req_q.io.enq.bits.tag))
-
-
-// temp
-  for(i <- 0 until cp.nScratchPadMem-1){
-    io.spReadCmd(i).valid := false.B
-    io.spReadCmd(i).bits.tag := 0.U
-    io.spReadCmd(i).bits.addr := 0.U
-    io.spReadData(i).ready := false.B
-  }
-  val valid = RegInit(false.B)
   val currRow = RegInit(0.U(32.W))
-  peArray(0).io.peReq.bits.denXSize := dec.io.xSizeDen
-  peArray(0).io.peReq.bits.sramColVal := dec.io.sramColVal
-  peArray(0).io.peReq.bits.sramDen := dec.io.sramDen
-  peArray(0).io.peReq.bits.sramPtr := dec.io.sramPtr
-  peArray(0).io.peReq.bits.rowIdx := currRow
-  peArray(0).io.peReq.valid := valid
-  peArray(0).io.spReadCmd.ready := (for(i <- 0 until cp.nScratchPadMem) yield {
-    io.spReadCmd(i).ready && peArray(0).io.spReadCmd.bits.spSel(i)
-  }).reduce(_||_)
-  peArray(0).io.spData.valid := (for(i <- 0 until cp.nScratchPadMem) yield {
-    io.spReadData(i).valid
-  }).reduce(_||_)
-  for(i <- 0 until cp.nScratchPadMem){
-    io.spReadCmd(i).valid := peArray(0).io.spReadCmd.bits.spSel(i) && peArray(0).io.spReadCmd.valid
-    io.spReadData(i).ready := peArray(0).io.spData.ready
-    io.spReadCmd(i).bits := peArray(0).io.spReadCmd.bits.spReadCmd
-    peArray(0).io.spData.bits := MuxTree(OHToUInt(peArray(0).io.spReadCmd.bits.spSel), io.spReadData.map(_.bits))
-  }
-  
+  val assignStart = (((state === sIdle) && start)
+                    || (state === sAssign))
+  val rowRem = dec.io.ySizeSp - currRow
 
+  assert (dec.io.ySizeSp =/= 9.U)
+
+
+// Assigns the lowest row index to the first available PE , 2nd lowest row index to next 
+// available PE and so on during the same clock cycle. Sets the valid high according to
+// number of higher priority PE that are free and number of rows remaining to be assigned
+  
+  
+  val rowAssignment  = WireDefault(VecInit(Seq.tabulate(cp.nPE)(n => (currRow + n.U))))
+  if(cp.nPE == 1){
+    peArray(0).io.peReq.bits.rowIdx := currRow
+    peArray(0).io.peReq.valid := assignStart && (rowRem > 0.U) 
+  }else{
+    for (i <- 0 until cp.nPE){
+      if(i == 0){ 
+        peArray(i).io.peReq.bits.rowIdx := rowAssignment(0)
+        peArray(i).io.peReq.valid := assignStart && (rowRem > 0.U) 
+      }else{
+        val vectorRowAssignment = VecInit(Seq.tabulate(i)(n => rowAssignment(n)))
+        if(i == 0){
+          val otherPEReady = PopCount(peFree(0))
+          peArray(i).io.peReq.bits.rowIdx := MuxTree(otherPEReady, vectorRowAssignment)
+          peArray(i).io.peReq.valid := assignStart && (rowRem > otherPEReady)
+        }else{
+          val otherPEReady = PopCount(peFree(i-1, 0))
+          peArray(i).io.peReq.bits.rowIdx := MuxTree(otherPEReady, vectorRowAssignment)
+          peArray(i).io.peReq.valid := assignStart && (rowRem > otherPEReady)
+        }
+      }
+    }
+  }
+
+  for(i <- 0 until cp.nPE){
+    peArray(i).io.peReq.bits.denXSize := dec.io.xSizeDen
+    peArray(i).io.peReq.bits.sramColVal := dec.io.sramColVal
+    peArray(i).io.peReq.bits.sramDen := dec.io.sramDen
+    peArray(i).io.peReq.bits.sramPtr := dec.io.sramPtr
+    peArray(i).io.spWrite <> io.spWrite
+  }
+  val done = RegInit(0.U(32.W))
+  io.done := done
 
 //   // instruction queue
   dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)
@@ -95,112 +108,34 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   // control
   switch(state) {
     is(sIdle) {
-      done := 0.U
+      done := false.B
       currRow := 0.U
-      when(start) {
-        valid := true.B
-        when(peFreeCount === 1.U){
+      when(start){
+        currRow := currRow + cp.nPE.U
+        when((currRow + cp.nPE.U) >= dec.io.ySizeSp){
           state := sWait
         }.otherwise{
-          when(currRow =/= (dec.io.ySizeSp - 1.U)){
-            state := sAssign
-          }.otherwise{
-            state := sDone
-          }
+          state := sAssign
         }
-
       }
     }
     is(sAssign){
-      currRow := currRow + 1.U
-      valid := true.B
-      when(peFreeCount === 1.U){
+      currRow := currRow + peFreeCount
+      when((currRow + peFreeCount) >= dec.io.ySizeSp){
         state := sWait
       }.otherwise{
-        when(currRow =/= (dec.io.ySizeSp - 1.U)){
-          state := sAssign
-        }.otherwise{
-          state := sDone
-        }
+        state := sAssign
       }
     }
     is(sWait){
-      valid := false.B
-      when(peFreeCount =/= 0.U){
-        currRow := currRow + 1.U
-        valid := true.B
-        when(peFreeCount === 1.U){
-          state := sWait
-      }.otherwise{
-          state := sWait
-        }
-      }
-    }
-    is(sDone){
       when(peAllFree){
-        done := 1.U
+        done := true.B
         state := sIdle
       }
     }
   }
 
-
-  // // control
-  // switch(state) {
-  //   is(sIdle) {
-  //     done := 0.U
-  //     when(start) {
-  //       state := sReadCmd
-  //       saddr := dec.io.sramColVal
-  //       stag := 0.U
-  //       ctr := 1.U
-  //       spSel := (1.U << 3)
-  //     }
-  //   }
-  //   is(sReadCmd){
-  //     when(req_q.io.enq.ready){
-  //       state := sReadData
-  //     }
-  //   }
-  //   is(sReadData){
-  //     when(data_q.io.deq.valid){
-  //       saddr := saddr + blockSizeBytes.U
-  //       sdata := data_q.io.deq.bits.data
-  //       spSel := (1.U << 3)
-  //       when(ctr === dec.io.xSizeDen){
-  //         state := sDone
-  //       }.otherwise{
-  //         state := sReadCmd
-  //         ctr := ctr + 1.U
-  //       }
-  //     }
-  //   }
-  //   is(sDone){
-  //     done := 1.U
-  //     state := sIdle
-  //   }
-  // }
- 
-//   req_q.io.enq.bits.addr := saddr
-//   req_q.io.enq.bits.tag := stag
-//   req_q.io.enq.valid := state === sReadCmd
-//   data_q.io.deq.ready := state === sReadData
-
-//   assert((sdata(0)===0.U))
-
-//   // instructions
+  // instructions
   inst_q.io.enq <> io.inst
-  inst_q.io.deq.ready := (state === sIdle) && peIsFree && io.valid
-
-  // // Read req Queue and read data queue to 3rd scratchpad
-  //   io.spReadCmd(3).bits := req_q.io.deq.bits
-  //   io.spReadCmd(3).valid := req_q.io.deq.valid
-  //   req_q.io.deq.ready := io.spReadCmd(3).ready
-
-  //   data_q.io.deq.ready := (state === sReadData) 
-
-  //   data_q.io.enq.bits := io.spReadData(3).bits
-  //   data_q.io.enq.valid := io.spReadData(3).valid
-  //   io.spReadData(3).ready := data_q.io.enq.ready 
-
+  inst_q.io.deq.ready := (state === sIdle) && io.valid
 }

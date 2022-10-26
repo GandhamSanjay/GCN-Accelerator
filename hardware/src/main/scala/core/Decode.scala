@@ -56,10 +56,10 @@ class SpMMDecode extends Bundle {
   val sram_offset_den = UInt(C_SRAM_OFFSET_BITS.W)
   val sram_offset_ptr = UInt(C_SRAM_OFFSET_BITS.W)
   val sram_offset_col_val = UInt(C_SRAM_OFFSET_BITS.W)
-  val push_next = Bool()
-  val push_prev = Bool()
-  val pop_next = Bool()
-  val pop_prev = Bool()
+  val push_next = UInt(1.W)
+  val push_prev = UInt(1.W)
+  val pop_next = UInt(1.W)
+  val pop_prev = UInt(1.W)
   val op = UInt(OP_BITS.W)
 }
 

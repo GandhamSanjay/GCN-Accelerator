@@ -1,0 +1,50 @@
+[*]
+[*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
+[*] Wed Oct 26 22:06:37 2022
+[*]
+[dumpfile] "/home/sanjay/research/GCN-Accelerator/test/Wrapper.vcd"
+[dumpfile_mtime] "Wed Oct 26 21:54:55 2022"
+[dumpfile_size] 706085
+[savefile] "/home/sanjay/research/GCN-Accelerator/test/peDebug.gtkw"
+[timestart] 210640
+[size] 1920 1043
+[pos] 1759 -116
+*-13.000000 224000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] Wrapper.
+[treeopen] Wrapper.core.
+[treeopen] Wrapper.core.compute.
+[sst_width] 400
+[signals_width] 570
+[sst_expanded] 1
+[sst_vpaned_height] 616
+@28
+Wrapper.core.compute.peArray_0.start
+Wrapper.core.compute.peArray_0.state[2:0]
+@22
+Wrapper.core.compute.peArray_0.spCol_io_spReadData_data[31:0]
+Wrapper.core.compute.peArray_0.spDen_io_spReadData_data[31:0]
+Wrapper.core.compute.peArray_0.spPtr_io_spReadData_data[31:0]
+Wrapper.core.compute.peArray_0.spVal_io_spReadData_data[31:0]
+Wrapper.core.compute.peArray_0.acc[31:0]
+Wrapper.core.compute.peArray_0.ptrCurr[31:0]
+Wrapper.core.compute.peArray_0.rowPtr1Data[31:0]
+Wrapper.core.compute.peArray_0.rowPtr2Data[31:0]
+Wrapper.core.compute.peArray_0.nonZeroInRow[31:0]
+Wrapper.core.compute.peArray_0.rowPtrSPAddr[15:0]
+Wrapper.core.compute.peArray_0.rowPtrSPAddrNext[15:0]
+Wrapper.core.compute.peArray_0.io_peReq_bits_denXSize[6:0]
+Wrapper.core.compute.peArray_0.io_peReq_bits_rowIdx[6:0]
+Wrapper.core.compute.peArray_0.io_peReq_bits_sramColVal[15:0]
+Wrapper.core.compute.peArray_0.io_peReq_bits_sramDen[15:0]
+Wrapper.core.compute.peArray_0.io_peReq_bits_sramPtr[15:0]
+@28
+Wrapper.core.compute.peArray_0.io_peReq_ready
+Wrapper.core.compute.peArray_0.io_peReq_valid
+@22
+Wrapper.core.compute.peArray_0.rowPtrAddr[15:0]
+Wrapper.core.compute.peArray_0.rowPtrAddr_q[15:0]
+Wrapper.core.compute.peArray_0.spPtr_io_spReadCmd_addr[15:0]
+@29
+Wrapper.core.compute.peArray_0.done
+[pattern_trace] 1
+[pattern_trace] 0
