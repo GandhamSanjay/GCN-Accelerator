@@ -55,33 +55,35 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val blockSizeBytes = (cp.blockSize/8)
 
   // Registers 
-  val ptrCurr_q = RegInit(0.U(32.W))
   val colCurr_q = RegInit(0.U(32.W))
-  val rowPtr1Data = Reg(UInt(32.W))
-  val rowPtr2Data = Reg(UInt(32.W))
+  val rowPtr1Data = RegInit(0.U(32.W))
+  val rowPtr2Data = RegInit(0.U(32.W))
   val macCount = RegInit(0.U(32.W)) 
-  val acc = RegInit(0.U(cp.blockSize.W))
-
+  val acc_q = RegInit(0.U(cp.blockSize.W))
+  val denCol_q = RegInit(0.U(32.W))
+  val ptrNext = RegInit(0.U(32.W))
   // state machine
 
   val sIdle :: sRowPtr1 :: sRowPtr2 :: sCol :: sMAC :: Nil = Enum(5)
   val state = RegInit(sIdle)
-  val ptrCurr = Mux(state === sRowPtr1, spPtr.io.spReadData.data, ptrCurr_q)
-  val endOfRow = ((state === sMAC) && (ptrCurr === rowPtr2Data))
-  val denCol_q = RegInit(0.U(32.W))
-  val denCol = Mux(endOfRow, denCol_q + 1.U, denCol_q)
   val start = io.peReq.fire
   val peReq_q = RegEnable(io.peReq.bits, start)
-  val endofCol = ((state === sMAC) && (denCol_q === peReq_q.denXSize))
-  val stateNext = RegInit(sIdle)
-
+  val colCurr = Mux(state === sCol, spCol.io.spReadData.data, colCurr_q)
+  val endOfRow = ((state === sMAC) && (ptrNext === rowPtr2Data))
+  val denCol = Mux(endOfRow, denCol_q + 1.U, denCol_q)
+  val endofCol = ((state === sMAC) && (denCol === peReq_q.denXSize))
+  val nonZeroInRow = Mux((state === sRowPtr2), spPtr.io.spReadData.data - rowPtr1Data, rowPtr2Data - rowPtr1Data)
+  val ptrCurr = Mux((endOfRow && !endofCol) || (nonZeroInRow === 1.U), rowPtr1Data, ptrNext)
+  val acc = Mux((state === sMAC), acc_q + (spVal.io.spReadData.data * spDen.io.spReadData.data), acc_q)
+  val spOutWrite = endOfRow
+  val spOutWriteData = acc
 
 
   val rowPtrAddr = io.peReq.bits.sramPtr + ((io.peReq.bits.rowIdx) << log2Ceil(cp.blockSize/8))
   val rowPtrAddr_q = peReq_q.sramPtr + ((peReq_q.rowIdx) << log2Ceil(cp.blockSize/8))
   val rowPtrSPAddr = Mux(start,rowPtrAddr, rowPtrAddr_q)
   val rowPtrSPAddrNext = rowPtrSPAddr + (cp.blockSize/8).U
-  val nonZeroInRow = Mux((state === sRowPtr2), spPtr.io.spReadData.data - rowPtr1Data, rowPtr2Data - rowPtr1Data)
+
   val done = ((state === sRowPtr2) && (nonZeroInRow === 0.U)
              || (endOfRow && endofCol))
   spPtr.io.spReadCmd.addr := Mux((state === sIdle) || done || (endOfRow && ! endofCol), rowPtrSPAddr, rowPtrSPAddrNext)
@@ -90,7 +92,7 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
 
   val colIdxAddr = peReq_q.sramColVal + (ptrCurr << log2Ceil(cp.blockSize/8))
   spCol.io.spReadCmd.addr := colIdxAddr
-  val colCurr = Mux(state === sCol, spCol.io.spReadData.data, colCurr_q)
+
 
   val valAddr = io.peReq.bits.sramColVal + (ptrCurr << log2Ceil(cp.blockSize/8))
   spVal.io.spReadCmd.addr := valAddr
@@ -109,16 +111,15 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
       }
     }
     is(sRowPtr1){
-      acc := 0.U
+      acc_q := 0.U
       state := sRowPtr2
       rowPtr1Data := spPtr.io.spReadData.data
-      ptrCurr_q := spPtr.io.spReadData.data
     }
     is(sRowPtr2){
       rowPtr2Data := spPtr.io.spReadData.data
       when(nonZeroInRow === 0.U){
         when(start){
-          acc := 0.U
+          acc_q := 0.U
           state := sRowPtr1
         }
       }.otherwise{
@@ -128,25 +129,30 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
     is(sCol){
       state := sMAC
       colCurr_q := spCol.io.spReadData.data
-      ptrCurr_q := ptrCurr_q + 1.U
+      ptrNext := ptrCurr + 1.U
     }
     is(sMAC){
-      acc :=  acc + (spVal.io.spReadData.data * spDen.io.spReadData.data)
-      denCol_q := denCol_q + 1.U
-      when(ptrCurr === rowPtr2Data){
-        when(denCol_q === peReq_q.denXSize ){
+      when(endOfRow){
+        acc_q := 0.U
+        when(endofCol){
           when(start){
             state := sRowPtr1
+          }.otherwise{
+            state := sIdle
           }
+          denCol_q := 0.U
         }.otherwise{
+          denCol_q := denCol_q + 1.U
           state := sCol
-          ptrCurr_q := rowPtr1Data
+          ptrNext := rowPtr1Data
         }
       }.otherwise{
         state := sCol
+        acc_q :=  acc_q + (spVal.io.spReadData.data * spDen.io.spReadData.data)
       }
     }
   }
 
   assert(acc =/= 19.U)
+  assert(acc_q =/= 19.U)
 }

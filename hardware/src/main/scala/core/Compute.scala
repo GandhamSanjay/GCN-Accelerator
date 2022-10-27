@@ -27,7 +27,8 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     Module(new PECSR)
   } 
 
-  var peIsFree = (peArray(0).io.peReq.ready && !peArray(0).io.peReq.valid)
+  // var peIsFree = (peArray(0).io.peReq.ready && !peArray(0).io.peReq.valid)
+  var peIsFree = (peArray(0).io.peReq.ready)
   var peFree = peIsFree
   var peAllFree = peIsFree
   var peFreeCount = peIsFree
