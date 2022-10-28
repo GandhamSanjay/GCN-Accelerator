@@ -34,7 +34,7 @@ case class CoreParams(
   val scratchPtrSize: Int = 1024*8,
   val blockSize: Int = 32,
   val scratchBankBlockSize: Int = 128,
-  val nPE: Int = 4,
+  val nPE: Int = 1,
   val nBanks: Int = 1
 ) {
   require(loadInstQueueEntries > 0, "instQueueEntries must be atleast 1")
