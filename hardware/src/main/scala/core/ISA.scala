@@ -52,7 +52,7 @@ object ISA {
   val C_DEP_BITS = 4
   val C_SRAM_OFFSET_BITS = 16
   val C_XSIZE_BITS = 7
-  val C_YSIZE_BITS = 0
+  val C_YSIZE_BITS = 7
   val Y = true.B
   val N = false.B
   val OP_L = 0.asUInt(OP_BITS.W)

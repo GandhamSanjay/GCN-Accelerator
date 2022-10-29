@@ -26,10 +26,11 @@ class SPWriteCmdWithSel(implicit p: Parameters) extends Bundle{
   val spSel = UInt(cp.nScratchPadMem.W)
 }
 
-class SPWriteCmd(implicit p: Parameters) extends Bundle{
+class SPWriteCmd(val scratchType: String = "Col")(implicit p: Parameters) extends Bundle{
   val mp = p(AccKey).memParams
+  val cp = p(AccKey).coreParams
   val addr = UInt(M_SRAM_OFFSET_BITS.W)
-  val data = UInt(mp.dataBits.W)
+  val data = if(scratchType == "Out"){UInt(cp.blockSize.W)}else{UInt(mp.dataBits.W)}
 }
 
 class SPReadCmd(implicit p: Parameters) extends Bundle{
@@ -43,9 +44,10 @@ class SPReadCmdWithSel(implicit p: Parameters) extends Bundle{
   val spSel = UInt(cp.nScratchPadMem.W)
 }
 
-class SPReadData(implicit p: Parameters) extends Bundle{
+class SPReadData(val scratchType: String = "Col")(implicit p: Parameters) extends Bundle{
   val cp = p(AccKey).coreParams
-  val data = UInt(cp.blockSize.W)
+  val mp = p(AccKey).memParams
+  val data = if(scratchType == "Out"){UInt(mp.dataBits.W)}else{UInt(cp.blockSize.W)}
 }
  
 class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p: Parameters)extends Module with ISAConstants{
@@ -65,12 +67,12 @@ class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p
     val writeEn = Input(Bool())
   })
 
-  // Write req/data queue
+  // Write
   val rdataSliced = Wire(UInt(cp.blockSize.W))
   val waddr = WireDefault(io.spWrite.addr)
   val wdata = WireDefault(io.spWrite.data)
 
-  // Read req/data/ queue
+  // Read
 
   val raddr = WireDefault(io.spReadCmd.addr)
   val rdata = Wire(Vec(nBanks, UInt(bankBlockSize.W)))
@@ -99,3 +101,51 @@ class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p
   io.spReadData.data := rdataSliced
 }
 
+class OutputScratchpad(scratchType: String = "Out", debug: Boolean = false)(implicit p: Parameters)extends Module with ISAConstants{
+  val mp = p(AccKey).memParams
+  val cp = p(AccKey).coreParams
+
+    // Scratch size params
+  val blockSize = cp.blockSize
+  val bankBlockSize = cp.scratchBankBlockSize
+  val scratchSize = cp.scratchSizeMap(scratchType)/mp.dataBits
+  val nBanks = mp.dataBits/bankBlockSize
+  
+  val io = IO(new Bundle {
+    val spWrite = Input(new SPWriteCmd(scratchType = "Out"))
+    val spReadCmd = Input(new SPReadCmd)
+    val spReadData = Output(new SPReadData(scratchType = "Out"))
+    val writeEn = Input(Bool())
+  })
+
+  // Write
+  val waddr = WireDefault(io.spWrite.addr)
+  val waddrByteAlign =  (waddr >> log2Ceil(bankBlockSize/8))
+  val wdata = WireDefault(io.spWrite.data)
+  val writeBankSel = (waddrByteAlign)(log2Ceil(nBanks) - 1, 0)
+  val writeIdx = waddrByteAlign >> log2Ceil(blockSize/8)
+  // Read
+
+  val raddr = WireDefault(io.spReadCmd.addr)
+  val rdata = Wire(Vec(nBanks, UInt(bankBlockSize.W)))
+  val bankSelPrev = RegInit(0.U(log2Ceil(nBanks).W))
+
+  val ram = Seq.fill(nBanks){
+    SyncReadMem(scratchSize, UInt(bankBlockSize.W))
+  }
+
+
+  for (i <- 0 until (nBanks)){
+    when(io.writeEn && (writeBankSel === i.U)){
+      ram(i).write(writeIdx, wdata)
+    }
+  }
+ 
+  val readIdx = raddr >> log2Ceil(blockSize/8)
+  for (i <- 0 until (nBanks)){
+    rdata(i) := ram(i).read(readIdx, true.B)
+  }
+  io.spReadData.data := rdata.reduce(Cat(_,_))
+
+  assert(ram(0)(1)=/=19.U)
+}

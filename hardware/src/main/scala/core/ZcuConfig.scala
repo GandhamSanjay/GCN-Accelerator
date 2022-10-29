@@ -34,7 +34,7 @@ case class CoreParams(
   val scratchPtrSize: Int = 1024*8,
   val blockSize: Int = 32,
   val scratchBankBlockSize: Int = 128,
-  val nPE: Int = 4,
+  val nPE: Int = 1,
   val nBanks: Int = 1
 ) {
   require(loadInstQueueEntries > 0, "instQueueEntries must be atleast 1")
@@ -44,7 +44,7 @@ case class CoreParams(
   var scratchSizeMap: HashMap[String, Int] = HashMap(("None", 0))
   if(Compression=="CSR"){
     scratchSizeMap = 
-      HashMap(("Col", scratchColSize), ("Val", scratchValSize), ("Ptr", scratchPtrSize), ("Den", scratchDenSize))
+      HashMap(("Col", scratchColSize), ("Val", scratchValSize), ("Ptr", scratchPtrSize), ("Den", scratchDenSize), ("Out", scratchDenSize))
   }
   val nScratchPadMem = ScratchPadMap(Compression)
 }

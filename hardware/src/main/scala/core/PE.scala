@@ -13,7 +13,7 @@ class PECSRIO(implicit p: Parameters) extends Bundle{
   val sramPtr = Input(UInt(C_SRAM_OFFSET_BITS.W))
   val sramDen = Input(UInt(C_SRAM_OFFSET_BITS.W))
   val denXSize = Input(UInt(C_XSIZE_BITS.W))
-  val spaYSize = Input(UInt(7.W))
+  val spaYSize = Input(UInt(C_YSIZE_BITS.W))
   val rowIdx = Input(UInt(C_XSIZE_BITS.W))
 }
 
@@ -43,6 +43,7 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val spCol = Module(new Scratchpad(scratchType = "Col"))
   val spPtr = Module(new Scratchpad(scratchType = "Ptr"))
   val spDen = Module(new Scratchpad(scratchType = "Den"))
+  val spOut = Module(new OutputScratchpad())
   io.spWrite(0).bits <> spVal.io.spWrite
   writeEnVec(0)      <> spVal.io.writeEn
   io.spWrite(1).bits <> spDen.io.spWrite
@@ -102,8 +103,11 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   spVal.io.spReadCmd.addr := valAddr
   val denAddr = io.peReq.bits.sramDen + ((colCurr << log2Ceil(cp.blockSize/8)) << Log2(peReq_q.denXSize)) + (denCol << log2Ceil(cp.blockSize/8))
   spDen.io.spReadCmd.addr := denAddr
-
-
+  spOut.io.spWrite.addr := (((rowNum_q << log2Ceil(cp.blockSize/8))) << Log2(peReq_q.denXSize)) + (denCol_q << log2Ceil(cp.blockSize/8))
+  spOut.io.spWrite.data := acc
+  spOut.io.spReadCmd.addr := acc
+  val outWriteEn = endOfRow
+  spOut.io.writeEn := outWriteEn
 
   io.peReq.ready := (state === sIdle) || done
 
