@@ -29,6 +29,7 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val io = IO(new Bundle {
     val peReq = Flipped(Decoupled(new PECSRIO))
     val spWrite = Vec(cp.nScratchPadMem, Flipped(Decoupled(new SPWriteCmd)))
+    val spOutWrite = Decoupled(new SPWriteCmd(scratchType = "Col")) 
   })
 
   val writeEnVec = Wire(Vec(cp.nScratchPadMem, Bool()))
@@ -43,7 +44,7 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val spCol = Module(new Scratchpad(scratchType = "Col"))
   val spPtr = Module(new Scratchpad(scratchType = "Ptr"))
   val spDen = Module(new Scratchpad(scratchType = "Den"))
-  val spOut = Module(new OutputScratchpad())
+  val out_q = Module(new Queue(new SPWriteCmd(scratchType = "Out"), cp.peOutputScratchQueueEntries))
   io.spWrite(0).bits <> spVal.io.spWrite
   writeEnVec(0)      <> spVal.io.writeEn
   io.spWrite(1).bits <> spDen.io.spWrite
@@ -52,6 +53,7 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   writeEnVec(2)      <> spPtr.io.writeEn
   io.spWrite(3).bits <> spCol.io.spWrite
   writeEnVec(3)      <> spCol.io.writeEn
+  io.spOutWrite <> out_q.io.deq
 
   val blockSizeBytes = (cp.blockSize/8)
 
@@ -103,13 +105,12 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   spVal.io.spReadCmd.addr := valAddr
   val denAddr = io.peReq.bits.sramDen + ((colCurr << log2Ceil(cp.blockSize/8)) << Log2(peReq_q.denXSize)) + (denCol << log2Ceil(cp.blockSize/8))
   spDen.io.spReadCmd.addr := denAddr
-  spOut.io.spWrite.addr := (((rowNum_q << log2Ceil(cp.blockSize/8))) << Log2(peReq_q.denXSize)) + (denCol_q << log2Ceil(cp.blockSize/8))
-  spOut.io.spWrite.data := acc
-  spOut.io.spReadCmd.addr := acc
   val outWriteEn = endOfRow
-  spOut.io.writeEn := outWriteEn
+  out_q.io.enq.bits.addr := (((rowNum_q << log2Ceil(cp.blockSize/8))) << Log2(peReq_q.denXSize)) + (denCol_q << log2Ceil(cp.blockSize/8))
+  out_q.io.enq.bits.data := acc
+  out_q.io.enq.valid := outWriteEn
 
-  io.peReq.ready := (state === sIdle) || done
+  io.peReq.ready := ((state === sIdle) || done) &&  (out_q.io.count === 0.U)
 
   switch(state){
     is(sIdle){

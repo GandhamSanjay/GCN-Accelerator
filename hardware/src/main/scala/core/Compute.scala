@@ -4,8 +4,7 @@ import chisel3._
 import chisel3.util._
 import vta.util.config._
 import scala.math._
-import gcn.core.util.MuxTree
-
+import gcn.core.util._
 // /** Compute.
 //  *
 //  * Takes instructions from fetch module. Schedules computation between PEs.
@@ -19,15 +18,16 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val spWrite = Vec(cp.nScratchPadMem, Flipped(Decoupled(new SPWriteCmd)))
     val valid = Input(Bool())
     val done = Output(Bool())
+    val spOutWrite = Decoupled(new SPWriteCmd(scratchType = "Col"))
   })
+  val arbiter = (Module(new MyRRArbiter(new SPWriteCmd(scratchType = "Out"), cp.nPE)))
+  io.spOutWrite <> arbiter.io.out
 //   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
   val dec = Module(new ComputeDecode)
   val peArray = for (i <- 0 until cp.nPE) yield {
     Module(new PECSR)
   } 
-
-  // var peIsFree = (peArray(0).io.peReq.ready && !peArray(0).io.peReq.valid)
 
   var peAllFree = (for(i <- 0 until cp.nPE) yield {
     peArray(i).io.peReq.ready
@@ -64,6 +64,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     peArray(i).io.peReq.valid := start
     peArray(i).io.peReq.bits.rowIdx := i.U
     peArray(i).io.spWrite <> io.spWrite
+    arbiter.io.in(i) <> peArray(i).io.spOutWrite
   }
   val done = RegInit(0.U(32.W))
   io.done := done

@@ -26,6 +26,7 @@ case class CRParams(
 case class CoreParams(
   val loadInstQueueEntries: Int = 1,
   val computeInstQueueEntries: Int = 1,
+  val peOutputScratchQueueEntries: Int = 10,
   val loadDataQueueEntries: Int = 1,
   val Compression: String = "CSR",
   val scratchColSize: Int = 1024*8,
@@ -34,7 +35,7 @@ case class CoreParams(
   val scratchPtrSize: Int = 1024*8,
   val blockSize: Int = 32,
   val scratchBankBlockSize: Int = 128,
-  val nPE: Int = 1,
+  val nPE: Int = 4,
   val nBanks: Int = 1
 ) {
   require(loadInstQueueEntries > 0, "instQueueEntries must be atleast 1")

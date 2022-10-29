@@ -22,9 +22,14 @@ class Core(implicit p: Parameters) extends Module {
   val fetch = Module(new Fetch)
   val load = Module(new Load)
   val compute = Module(new Compute)
+  val spOut = Module(new OutputScratchpad(scratchType = "Out"))
   val start = Wire(Bool())
 
+  spOut.io.spWrite <> compute.io.spOutWrite.bits
+  compute.io.spOutWrite.ready := true.B
+  spOut.io.writeEn := compute.io.spOutWrite.valid
   compute.io.spWrite <> load.io.spWrite
+  spOut.io.spReadCmd.addr := 0.U
 
   start := io.cr.launch
 
@@ -54,11 +59,6 @@ class Core(implicit p: Parameters) extends Module {
   io.me.wr(0).data.bits.strb := 0.U
   io.me.rd(0) <> fetch.io.me_rd
   io.me.rd(1) <> load.io.me_rd
-  // io.me.rd(0).cmd.valid := state === sBusy
-  // io.me.rd(0).cmd.bits.addr := 0.U
-  // io.me.rd(0).cmd.bits.len := 0.U
-  // io.me.rd(0).cmd.bits.tag := 0.U
-  // io.me.rd(0).data.ready := true.B
 
   switch(state){
     is(sIdle){
