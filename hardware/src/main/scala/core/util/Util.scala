@@ -3,6 +3,8 @@ package gcn.core.util
 import chisel3._
 import chisel3.util._
 
+// Tree of 2 to 1 Muxes to support vector selection based on select
+
 object MuxTree {
   def apply[T <: Data](idx: UInt, vec: Seq[T]): T = {
     require(vec.size > 0)
@@ -18,6 +20,8 @@ object MuxTree {
     }
   }
 }
+
+// RRArbiter with lastGrant register initialization to allow simulation
 
 private object MyArbiterCtrl {
   def apply(request: Seq[Bool]): Seq[Bool] = request.length match {
