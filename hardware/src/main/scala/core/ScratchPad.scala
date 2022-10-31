@@ -107,9 +107,8 @@ class OutputScratchpad(scratchType: String = "Out", debug: Boolean = false)(impl
 
     // Scratch size params
   val blockSize = cp.blockSize
-  val bankBlockSize = cp.scratchBankBlockSize
   val scratchSize = cp.scratchSizeMap(scratchType)/mp.dataBits
-  val nBanks = mp.dataBits/bankBlockSize
+  val nBanks = mp.dataBits/blockSize
   
   val io = IO(new Bundle {
     val spWrite = Input(new SPWriteCmd(scratchType = "Out"))
@@ -120,18 +119,17 @@ class OutputScratchpad(scratchType: String = "Out", debug: Boolean = false)(impl
 
   // Write
   val waddr = WireDefault(io.spWrite.addr)
-  val waddrByteAlign =  (waddr >> log2Ceil(bankBlockSize/8))
+  val waddrByteAlign =  (waddr >> log2Ceil(blockSize/8))
   val wdata = WireDefault(io.spWrite.data)
   val writeBankSel = (waddrByteAlign)(log2Ceil(nBanks) - 1, 0)
-  val writeIdx = waddrByteAlign >> log2Ceil(blockSize/8)
+  val writeIdx = waddrByteAlign >> log2Ceil(nBanks)
   // Read
 
   val raddr = WireDefault(io.spReadCmd.addr)
-  val rdata = Wire(Vec(nBanks, UInt(bankBlockSize.W)))
-  val bankSelPrev = RegInit(0.U(log2Ceil(nBanks).W))
+  val rdata = Wire(Vec(nBanks, UInt(blockSize.W)))
 
   val ram = Seq.fill(nBanks){
-    SyncReadMem(scratchSize, UInt(bankBlockSize.W))
+    SyncReadMem(scratchSize, UInt(blockSize.W))
   }
 
 
@@ -141,11 +139,11 @@ class OutputScratchpad(scratchType: String = "Out", debug: Boolean = false)(impl
     }
   }
  
-  val readIdx = raddr >> log2Ceil(blockSize/8)
+  val readIdx = raddr >> log2Ceil(nBanks*blockSize/8)
   for (i <- 0 until (nBanks)){
     rdata(i) := ram(i).read(readIdx, true.B)
   }
-  io.spReadData.data := rdata.reduce(Cat(_,_))
+  io.spReadData.data := rdata.reverse.reduce(Cat(_,_))
 
   assert(ram(0)(1)=/=19.U)
 }

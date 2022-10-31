@@ -124,7 +124,8 @@ class FetchDecode extends Module with ISAConstants{
         LPTR -> List(Y, OP_L),
         LVAL -> List(Y, OP_L),
         LDEN -> List(Y, OP_L),
-        SPMM -> List(Y, OP_C)
+        SPMM -> List(Y, OP_C),
+        SOUT -> List(Y, OP_S)
       )
     )
 

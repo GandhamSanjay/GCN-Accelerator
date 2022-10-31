@@ -85,6 +85,12 @@ object ISA {
     instPat(inst)
   }
 
+  private def store(id: String): BitPat = {
+    val rem = xLen - idBits("mem") - depBits - idBits("task")
+    val inst = dontCare(rem) + memId(id) + dontCare(depBits) + taskId("store")
+    instPat(inst)
+  }
+
   private def spmm: BitPat = {
     val rem = xLen - idBits("task")
     val inst = dontCare(rem) + taskId("spmm")
@@ -98,6 +104,7 @@ object ISA {
   def LDEN = load("den")
   def LOUT = load("out")
   def SPMM = spmm
+  def SOUT = store("out")
 
   val scratchID = 
       HashMap(("Col", 8), ("Val", 1), ("Ptr", 4), ("Den", 2))

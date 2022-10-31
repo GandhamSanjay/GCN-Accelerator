@@ -34,7 +34,7 @@ case class CoreParams(
   val scratchValSize: Int = 1024*8,
   val scratchPtrSize: Int = 1024*8,
   val blockSize: Int = 32,
-  val scratchBankBlockSize: Int = 128,
+  val scratchBankBlockSize: Int = 256,
   val nPE: Int = 8,
   val nBanks: Int = 1
 ) {

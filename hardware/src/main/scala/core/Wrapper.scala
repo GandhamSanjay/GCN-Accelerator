@@ -44,14 +44,16 @@ class Wrapper(implicit p: Parameters) extends RawModule{
   m_axi_gmem.AWREGION := me.io.mem.aw.bits.region
 
   m_axi_gmem.WVALID := me.io.mem.w.valid
-  me.io.mem.w.ready := m_axi_gmem.WREADY
+  // me.io.mem.w.ready := m_axi_gmem.WREADY
+  me.io.mem.w.ready := true.B
   m_axi_gmem.WDATA := me.io.mem.w.bits.data
   m_axi_gmem.WSTRB := me.io.mem.w.bits.strb
   m_axi_gmem.WLAST := me.io.mem.w.bits.last
   m_axi_gmem.WID := me.io.mem.w.bits.id
   m_axi_gmem.WUSER := me.io.mem.w.bits.user
 
-  me.io.mem.b.valid := m_axi_gmem.BVALID
+  // me.io.mem.b.valid := m_axi_gmem.BVALID
+  me.io.mem.b.valid := true.B
   m_axi_gmem.BREADY := me.io.mem.b.valid
   me.io.mem.b.bits.resp := m_axi_gmem.BRESP
   me.io.mem.b.bits.id := m_axi_gmem.BID
@@ -101,8 +103,6 @@ class Wrapper(implicit p: Parameters) extends RawModule{
   cr.io.host.r.ready := s_axi_control.RREADY
   s_axi_control.RDATA := cr.io.host.r.bits.data
   s_axi_control.RRESP := cr.io.host.r.bits.resp
-
-
 
 }
 

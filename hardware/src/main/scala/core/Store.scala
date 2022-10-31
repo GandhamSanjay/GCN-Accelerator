@@ -51,7 +51,7 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
         when(dec.io.xSize === 0.U){
           done := true.B
         }.otherwise{
-          when(isStride){
+          when(!isStride){
             waddr := dec.io.sramOffset
             saddr := dec.io.sramOffset
             state := sWriteCmd
