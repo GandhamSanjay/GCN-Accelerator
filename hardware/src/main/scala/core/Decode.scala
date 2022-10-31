@@ -203,3 +203,17 @@ class ComputeDecode extends Module with ISAConstants{
 //   io.isStore := io.inst === SOUT & dec.xsize =/= 0.U
 //   io.isSync := io.inst === SOUT & dec.xsize === 0.U
 // }
+class StoreDecode extends Module with ISAConstants{
+  val io = IO(new Bundle {
+    val inst = Input(UInt(INST_BITS.W))
+    val xSize = Output(UInt(M_XSIZE_BITS.W))
+    val ySize = Output(UInt(M_YSIZE_BITS.W))
+    val dramOffset = Output(UInt(M_DRAM_OFFSET_BITS.W))
+    val sramOffset = Output(UInt(M_SRAM_OFFSET_BITS.W))
+  })
+  val dec = io.inst.asTypeOf(new MemDecode)
+  io.xSize := dec.xsize
+  io.ySize := dec.ysize
+  io.sramOffset := dec.sram_offset
+  io.dramOffset := dec.dram_offset
+}

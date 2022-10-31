@@ -1,0 +1,33 @@
+[*]
+[*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
+[*] Sat Oct 29 00:10:24 2022
+[*]
+[dumpfile] "/home/sanjay/research/GCN-Accelerator/test/Wrapper.vcd"
+[dumpfile_mtime] "Sat Oct 29 00:10:16 2022"
+[dumpfile_size] 628783
+[savefile] "/home/sanjay/research/GCN-Accelerator/test/temp.gtkw"
+[timestart] 184990
+[size] 1920 1043
+[pos] 1797 -78
+*-14.000000 232000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] Wrapper.
+[treeopen] Wrapper.core.
+[treeopen] Wrapper.core.compute.
+[sst_width] 368
+[signals_width] 332
+[sst_expanded] 1
+[sst_vpaned_height] 298
+@22
+Wrapper.core.compute.peArray_0.spOut_io_spWrite_addr[15:0]
+Wrapper.core.compute.peArray_0.spOut_io_spWrite_data[31:0]
+@28
+Wrapper.core.compute.peArray_0.spOut_io_writeEn
+@22
+Wrapper.core.compute.peArray_0.denCol[31:0]
+@23
+Wrapper.core.compute.peArray_0.denCol_q[31:0]
+@22
+Wrapper.core.compute.peArray_0.rowNum[31:0]
+Wrapper.core.compute.peArray_0.rowNum_q[31:0]
+[pattern_trace] 1
+[pattern_trace] 0
