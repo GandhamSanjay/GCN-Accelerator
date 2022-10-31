@@ -1,10 +1,14 @@
-# Proof-of-concept GCN-Accelerator
+# Baseline GCN-Accelerator
 - Computes sparse-dense matrix multiplication
 - Decouples access execute but dependency checking not implemented in the hardware
-- Core executes 4 loads and then a compute instruction
-- Output buffer/scratchpad and store instruction not supported yet
-- Compute PE state machine has minor bugs. Can read row pointer twice and start MAC. Probably doesn't know when to stop the execution
-- Supports only 1 PE
+- Core executes 4 loads and then a compute instruction and a store instruction
+- Global output scratchpad with output value queue for each PE
+## Todo
+- local psum scratchpad
+- psum scratchpad integrated into MAC
+- masked writes to and from scratchpad
+- Tiling
+- dependence checking
 
 ## Configuration
 - **Compression:** CSR
