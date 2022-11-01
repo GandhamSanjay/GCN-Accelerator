@@ -35,7 +35,7 @@ case class CoreParams(
   val scratchPtrSize: Int = 1024*8,
   val blockSize: Int = 32,
   val scratchBankBlockSize: Int = 256,
-  val nPE: Int = 8,
+  val nPE: Int = 4,
   val nBanks: Int = 1
 ) {
   require(loadInstQueueEntries > 0, "instQueueEntries must be atleast 1")
@@ -83,7 +83,7 @@ class ZcuConfig extends Config((site, here, up) => {
       memParams = AXIParams(coherent = false,
         addrBits = 32,
         dataBits = 512,
-        lenBits  = 1,
+        lenBits  = 8,
         userBits = 1),
       meParams = MEParams()
     )

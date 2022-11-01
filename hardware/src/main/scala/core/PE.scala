@@ -79,7 +79,7 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val endOfCol = ((state === sMAC) && (denCol === peReq_q.denXSize))
   val nonZeroInRow = Mux((state === sRowPtr2), spPtr.io.spReadData.data - rowPtr1Data, rowPtr2Data - rowPtr1Data)
   val ptrCurr = Mux((endOfRow && !endOfCol) || (nonZeroInRow === 1.U), rowPtr1Data, ptrNext)
-  val acc = Mux((state === sMAC), acc_q + (spVal.io.spReadData.data * spDen.io.spReadData.data), acc_q)
+  val acc = acc_q + (spVal.io.spReadData.data * spDen.io.spReadData.data)
   val spOutWrite = endOfRow
   val spOutWriteData = acc
   val done = ((state === sRowPtr2) && (nonZeroInRow === 0.U)
@@ -163,7 +163,7 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
         }
       }.otherwise{
         state := sCol
-        acc_q :=  acc_q + (spVal.io.spReadData.data * spDen.io.spReadData.data)
+        acc_q :=  acc
       }
     }
   }

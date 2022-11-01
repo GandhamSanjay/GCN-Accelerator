@@ -11,7 +11,6 @@ class Wrapper(implicit p: Parameters) extends RawModule{
   val ap_rst_n = IO(Input(Bool()))
   val hp = p(AccKey).hostParams
   val s_axi_control = IO(new XilinxAXILiteClient(hp))
-  val finish = IO(Output(Bool()))
   val m_axi_gmem = IO(new XilinxAXIMaster(p(AccKey).memParams))
 
   val cr = withClockAndReset(clock = ap_clk, reset = ~ap_rst_n) {
@@ -25,7 +24,6 @@ class Wrapper(implicit p: Parameters) extends RawModule{
   }
   core.io.cr <> cr.io.cr
   me.io.me <> core.io.me
-  finish := cr.io.cr.finish
 
 
    // memory
