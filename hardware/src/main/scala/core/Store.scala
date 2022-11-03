@@ -12,6 +12,7 @@ import scala.math._
 class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with ISAConstants{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
+  val regBits = p(AccKey).crParams.regBits
   val io = IO(new Bundle {
     val inst = Flipped(Decoupled(UInt(INST_BITS.W)))
     val spReadCmd = Output(new SPReadCmd())
@@ -19,10 +20,12 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
     val me_wr = new MEWriteMaster
     val valid = Input(Bool())
     val done = Output(Bool())
+    val ecnt = ValidIO(UInt(regBits.W))
   })
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.loadInstQueueEntries))
   val dec = Module(new StoreDecode)
+  val storeTime = RegInit(0.U(regBits.W))
   // state machine
   val sIdle :: sWriteCmd :: sWriteData :: sReadMem :: sWriteAck :: Nil = Enum(5)
   val state = RegInit(sIdle)
@@ -128,5 +131,15 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   io.me_wr.data.valid := state === sWriteData
   io.me_wr.data.bits.data := io.spReadData.data
   io.me_wr.data.bits.strb := Fill(io.me_wr.data.bits.strb.getWidth, true.B)
+
+  // Store execution time
+  when(done){
+    storeTime := 0.U
+  }.elsewhen(start || storeTime =/= 0.U){
+    storeTime := storeTime + 1.U
+  }
+
+  io.ecnt.bits := storeTime
+  io.ecnt.valid := done
 
 }

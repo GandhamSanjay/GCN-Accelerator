@@ -19,6 +19,7 @@ class Core(implicit p: Parameters) extends Module {
     val me = new MEMaster
   })
   val cp = p(AccKey).coreParams
+  val cr = p(AccKey).crParams
   val fetch = Module(new Fetch)
   val load = Module(new Load)
   val compute = Module(new Compute)
@@ -34,6 +35,15 @@ class Core(implicit p: Parameters) extends Module {
   store.io.spReadCmd <> spOut.io.spReadCmd
   store.io.spReadData <> spOut.io.spReadData
 
+  io.cr.ecnt(0) <> load.io.ecnt
+  io.cr.ecnt(1) <> compute.io.ecnt(0)
+  io.cr.ecnt(2) <> store.io.ecnt
+  for(i <- 0 until cp.nPE){
+    for(j <- 0 until cr.nPEEventCtr){
+      io.cr.ecnt(3+(i*cr.nPEEventCtr) + j) <> compute.io.ecnt((i*cr.nPEEventCtr) + j + 1)
+ }
+  }
+ 
   start := io.cr.launch
 
   val sIdle :: sLoad :: sCompute :: sStore :: sFinish :: Nil = Enum(5)
@@ -55,13 +65,6 @@ class Core(implicit p: Parameters) extends Module {
 
   // Read(rd) and write(wr) from/to memory (i.e. DRAM)
   io.cr.finish := (state === sFinish)
-  // io.me.wr(0).cmd.valid := false.B
-  // io.me.wr(0).cmd.bits.addr := 0.U
-  // io.me.wr(0).cmd.bits.len := 0.U
-  // io.me.wr(0).cmd.bits.tag := 0.U
-  // io.me.wr(0).data.valid := false.B
-  // io.me.wr(0).data.bits.data := 0.U
-  // io.me.wr(0).data.bits.strb := 0.U
   io.me.rd(0) <> fetch.io.me_rd
   io.me.rd(1) <> load.io.me_rd
   io.me.wr(0) <> store.io.me_wr

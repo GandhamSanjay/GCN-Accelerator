@@ -26,13 +26,19 @@ class PECSRIO(implicit p: Parameters) extends Bundle{
 class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with ISAConstants{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
+  val regBits = p(AccKey).crParams.regBits 
   val io = IO(new Bundle {
     val peReq = Flipped(Decoupled(new PECSRIO))
     val spWrite = Vec(cp.nScratchPadMem, Flipped(Decoupled(new SPWriteCmd)))
     val spOutWrite = Decoupled(new SPWriteCmd(scratchType = "Col")) 
+    val ecnt = Vec(p(AccKey).crParams.nPEEventCtr, ValidIO(UInt(regBits.W)))
   })
 
   val writeEnVec = Wire(Vec(cp.nScratchPadMem, Bool()))
+  val d1Time = RegInit(0.U(regBits.W))
+  val d2Time = RegInit(0.U(regBits.W))
+  val macTime = RegInit(0.U(regBits.W))
+  val peTime = RegInit(0.U(regBits.W))
 
   for(i <- 0 until cp.nScratchPadMem){
     io.spWrite(i).ready := true.B
@@ -111,6 +117,8 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   out_q.io.enq.valid := outWriteEn
 
   io.peReq.ready := ((state === sIdle) || done) &&  (out_q.io.count === 0.U)
+  val done_q = WireDefault(false.B)
+  done_q := ((state === sIdle) && (RegNext(state) =/= sIdle))
 
   switch(state){
     is(sIdle){
@@ -170,4 +178,35 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
 
   assert(acc =/= 19.U)
   assert(acc_q =/= 19.U)
+
+  when(state === sRowPtr1 || state === sRowPtr2){
+    d1Time := d1Time + 1.U
+  }.elsewhen(done_q){
+    d1Time := 0.U
+  }
+  when(state === sCol){
+    d2Time := d2Time + 1.U
+  }.elsewhen(done_q){
+    d2Time := 0.U
+  }
+  when(state === sMAC){
+    macTime := macTime + 1.U
+  }.elsewhen(done_q){
+    macTime := 0.U
+  }
+  when(state =/= sIdle){
+    peTime := peTime + 1.U
+  }.elsewhen(done_q){
+    peTime := 0.U
+  }
+
+  
+  io.ecnt(0).bits := d1Time
+  io.ecnt(1).bits := d2Time
+  io.ecnt(2).bits := macTime
+  io.ecnt(3).bits := peTime
+  io.ecnt(0).valid := done_q
+  io.ecnt(1).valid := done_q
+  io.ecnt(2).valid := done_q
+  io.ecnt(3).valid := done_q
 }

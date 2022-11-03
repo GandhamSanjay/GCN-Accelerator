@@ -14,12 +14,13 @@ case class AccParams(
 )
 
 case class CRParams(
-  val nSlaveReg: Int = 6,
-  val nEventCtr: Int = 0,
   val regBits : Int = 32,
-  val nMmapReg : Int = 2
+  val nMmapReg : Int = 2 // Registers that are used by accelerator and must be initialized
 ) {
-  require(nSlaveReg > 0, "Core slave register must be atleast 1")
+  val nPEEventCtr: Int = 4
+  val nComputeEventCtr: Int = (CoreParams().nPE*4) + 1 // 1 register for total compute time
+  val nEventCtr: Int = nComputeEventCtr + 2 // performance counters ((D1,D2, MAC, Total_PE)*nPE + compute) + load + store  
+  val nSlaveReg: Int = nEventCtr + nMmapReg + 3// additional reg to launch the accelerator, indicate the end of execution and total time
   require(nMmapReg < nSlaveReg, "memory mapped registers should be atleast 1 less than slave register")
 }
 
@@ -35,7 +36,7 @@ case class CoreParams(
   val scratchPtrSize: Int = 1024*8,
   val blockSize: Int = 32,
   val scratchBankBlockSize: Int = 256,
-  val nPE: Int = 4,
+  val nPE: Int = 2,
   val nBanks: Int = 1
 ) {
   require(loadInstQueueEntries > 0, "instQueueEntries must be atleast 1")

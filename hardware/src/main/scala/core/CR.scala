@@ -5,6 +5,7 @@ import chisel3.util._
 import vta.util.config._
 import vta.util.genericbundle._
 import gcn.core.util._
+import scala.math._
 
 /** CRBase. Parametrize base class. */
 abstract class CRBase(implicit p: Parameters) extends GenericParameterizedBundle(p)
@@ -19,7 +20,7 @@ class CRMaster(implicit p: Parameters) extends CRBase {
   val mp = p(AccKey).memParams
   val launch = Output(Bool())
   val finish = Input(Bool())
-  val ecnt = if (cp.nEventCtr > 0) Some(Vec(cp.nEventCtr, Flipped(ValidIO(UInt(cp.regBits.W))))) else None
+  val ecnt = Vec(cp.nEventCtr, Flipped(ValidIO(UInt(cp.regBits.W))))
   val vals = Output(Vec(cp.nMmapReg, UInt(cp.regBits.W)))
 }
 
@@ -33,7 +34,7 @@ class CRClient(implicit p: Parameters) extends CRBase {
   val mp = p(AccKey).memParams
   val launch = Input(Bool())
   val finish = Output(Bool())
-  val ecnt = if (cp.nEventCtr > 0) Some(Vec(cp.nEventCtr, ValidIO(UInt(cp.regBits.W)))) else None
+  val ecnt = Vec(cp.nEventCtr, ValidIO(UInt(cp.regBits.W)))
   val vals = Input(Vec(cp.nMmapReg, UInt(cp.regBits.W)))
 }
 /** Control Registers (CR).
@@ -50,16 +51,33 @@ class CR(implicit p: Parameters) extends Module {
     val host = new AXILiteClient(p(AccKey).hostParams)
     val cr = new CRMaster
   })
+ /*
+  ******* Slave Registers *********
 
-  // Slave registers
+  0 - 0x0 - start
+  1 - 0x4 - instruction base address
+  2 - 0x8 - instruction count
+  
+  ******* Event Counters *********
+  
+  3 - 0xc - finish
+  4 - 0x10 - total time
+  5 - 0x14 - load time
+  6 - 0x18 - compute time
+  7 - 0x20 - store time
+  (8,9,10,11) - D1, D2, MAC, PE time 
+  .
+  .
+  .
+ */
   val nSlaveReg = crParams.nSlaveReg
   val slaveReg  = RegInit(VecInit(Seq.fill(nSlaveReg)(0.U(regBits.W))))
   val rdata  = WireDefault(slaveReg(0))
   val slaveRegReadSelect = (io.host.ar.bits.addr >> 2)(log2Ceil(nSlaveReg)-1,0)
-  
+  val totalTime = RegInit(0.U(regBits.W))
   // CR IO 
-  val pulse = Wire(UInt(regBits.W))
-  pulse := slaveReg(0)(0) && !RegNext(slaveReg(0)(0), init  = false.B)
+  val pulse = Wire(Bool())
+  pulse := slaveReg(0)(0).asBool && !RegNext(slaveReg(0)(0), init  = false.B)
   io.cr.launch := pulse
   for {i <- 0 until crParams.nMmapReg}{
     io.cr.vals(i) := slaveReg(i+1)
@@ -123,6 +141,19 @@ class CR(implicit p: Parameters) extends Module {
   }
 
   when(io.host.aw.fire) { waddr := io.host.aw.bits.addr }
+
+  // Total execution time
+  when(io.cr.finish){
+    slaveReg(4) := totalTime
+    slaveReg(3) := 1.U
+    totalTime := 0.U
+  }.elsewhen(pulse || totalTime =/= 0.U){
+     totalTime := totalTime + 1.U
+  }
+  io.cr.ecnt.zip(slaveReg.slice(5, slaveReg.length)).foreach{
+    case (a,b) => when(a.valid){ b := a.bits }
+  }
+  
 
   io.host.aw.ready := wstate === sWriteAddress
   io.host.w.ready := wstate === sWriteData

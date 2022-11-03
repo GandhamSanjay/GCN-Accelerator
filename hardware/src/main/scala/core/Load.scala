@@ -15,18 +15,22 @@ import scala.math._
 class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with ISAConstants{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
+  val regBits = p(AccKey).crParams.regBits
   val io = IO(new Bundle {
     val inst = Flipped(Decoupled(UInt(INST_BITS.W)))
     val me_rd = new MEReadMaster
     val valid = Input(Bool())
     val done = Output(Bool())
     val spWrite = Vec(cp.nScratchPadMem, Decoupled(new SPWriteCmd))
+    val ecnt = ValidIO(UInt(regBits.W))
   })
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.loadInstQueueEntries))
   val data_qEntries = (1 << mp.lenBits)
   val data_q = Module(new Queue(new SPWriteCmdWithSel, data_qEntries))
   val dec = Module(new LoadDecode)
+  val loadTime = RegInit(0.U(regBits.W))
+  
   // state machine
   val sIdle :: sStride :: sSeq :: sSeqCmd :: sSeqReadData :: sDelay :: Nil = Enum(6)
   val state = RegInit(sIdle)
@@ -153,4 +157,13 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
     data_q.io.deq.bits.spSel(i) && io.spWrite(i).ready
   }).reduce(_||_)
   
+// Load execution time
+when(done){
+  loadTime := 0.U
+}.elsewhen(start || loadTime =/= 0.U){
+  loadTime := loadTime + 1.U
+}
+
+io.ecnt.bits := loadTime
+io.ecnt.valid := done
 }
