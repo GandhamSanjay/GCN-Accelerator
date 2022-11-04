@@ -34,7 +34,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   } 
 
   var peAllFree = (for(i <- 0 until cp.nPE) yield {
-    peArray(i).io.peReq.ready
+    peArray(i).io.free
   }).reduce(_&&_)
  
 

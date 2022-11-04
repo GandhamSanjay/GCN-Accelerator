@@ -32,6 +32,7 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
     val spWrite = Vec(cp.nScratchPadMem, Flipped(Decoupled(new SPWriteCmd)))
     val spOutWrite = Decoupled(new SPWriteCmd(scratchType = "Col")) 
     val ecnt = Vec(p(AccKey).crParams.nPEEventCtr, ValidIO(UInt(regBits.W)))
+    val free = Output(Bool())
   })
 
   val writeEnVec = Wire(Vec(cp.nScratchPadMem, Bool()))
@@ -176,9 +177,6 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
     }
   }
 
-  assert(acc =/= 19.U)
-  assert(acc_q =/= 19.U)
-
   when(state === sRowPtr1 || state === sRowPtr2){
     d1Time := d1Time + 1.U
   }.elsewhen(done_q){
@@ -209,4 +207,5 @@ class PECSR(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   io.ecnt(1).valid := done_q
   io.ecnt(2).valid := done_q
   io.ecnt(3).valid := done_q
+  io.free := (state === sIdle)&&(out_q.io.count === 0.U)
 }

@@ -55,7 +55,7 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
           done := true.B
         }.otherwise{
           when(!isStride){
-            waddr := dec.io.sramOffset
+            waddr := dec.io.dramOffset
             saddr := dec.io.sramOffset
             state := sWriteCmd
             when(transferTotal < maxTransferPerReq){
