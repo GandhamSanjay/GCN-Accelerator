@@ -9,7 +9,7 @@ class TB(object):
     def __init__(self, dut):
         self.dut = dut
         self.log = logging.getLogger('cocotb_tb')
-        self.log.setLevel(logging.DEBUG)
+        self.log.setLevel(logging.WARNING)
         self.axi_master = AxiLiteMaster(AxiLiteBus.from_prefix(self.dut, "s_axi_control"), self.dut.ap_clk)
 
         # Slave for mutiple outstanding r and single w requests. Can read/write in parallel 
@@ -56,13 +56,35 @@ class TB(object):
 
     async def launch(self, inst_cnt, b_addr = 0x00000000):
         await Timer(20, units='ns')
-        await self.axi_master.write_dwords(0x000c, [b_addr], byteorder='little')
-        await self.axi_master.write_dwords(0x0008, [inst_cnt], byteorder='little')
-        await self.axi_master.write_dwords(0x0000, [1], byteorder='little')
+        await self.axi_master.write_dwords(0x0004, [b_addr], byteorder = 'little')
+        await self.axi_master.write_dwords(0x0008, [inst_cnt], byteorder = 'little')
+        await self.axi_master.write_dwords(0x0000, [1], byteorder = 'little')
 
 @cocotb.test()
 async def my_first_test(dut):
     """Try accessing the design."""
     tb = TB(dut)
     await tb.launch(inst_cnt = 8)
-    await Timer(10000, units='ns')
+    addr = 0x000c
+    while((await tb.axi_master.read_dwords(addr,1))[0] == 0):
+        await Timer(1, units='ns')
+    print("*********************************Execution Metrics*******************************")
+    addr = addr + 0x0004
+    print(f"Total time = {await tb.axi_master.read_dwords(addr,1)}")
+    addr = addr + 0x0004
+    print(f"Load time = {await tb.axi_master.read_dwords(addr,1)}")
+    addr = addr + 0x0004
+    print(f"Compute time = {await tb.axi_master.read_dwords(addr,1)}")
+    addr = addr + 0x0004
+    print(f"Store time = {await tb.axi_master.read_dwords(addr,1)}")
+    addr = addr + 0x0004
+    for i in range(2):
+        print(f"D1 time = {await tb.axi_master.read_dwords(addr,1)}")
+        addr = addr + 0x0004
+        print(f"D2 time = {await tb.axi_master.read_dwords(addr,1)}")
+        addr = addr + 0x0004
+        print(f"MAC time = {await tb.axi_master.read_dwords(addr,1)}")
+        addr = addr + 0x0004
+        print(f"PE time = {await tb.axi_master.read_dwords(addr,1)}")
+        addr = addr + 0x0004
+    await Timer(10, units='ns')

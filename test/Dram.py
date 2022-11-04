@@ -1,7 +1,6 @@
 from numpy import binary_repr
 import numpy as np
 import logging
-import random
 from inst import inst
 
 class data:
