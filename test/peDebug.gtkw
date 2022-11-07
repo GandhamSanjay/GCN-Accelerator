@@ -1,58 +1,44 @@
 [*]
 [*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
-[*] Thu Oct 27 17:56:58 2022
+[*] Mon Nov  7 00:55:54 2022
 [*]
 [dumpfile] "/home/sanjay/research/GCN-Accelerator/test/Wrapper.vcd"
-[dumpfile_mtime] "Thu Oct 27 17:50:00 2022"
-[dumpfile_size] 1554552
+[dumpfile_mtime] "Mon Nov  7 00:54:11 2022"
+[dumpfile_size] 395985
 [savefile] "/home/sanjay/research/GCN-Accelerator/test/peDebug.gtkw"
-[timestart] 115300
+[timestart] 182270
 [size] 1920 1043
-[pos] 1759 -116
-*-16.000000 288000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[pos] 1797 -78
+*-14.000000 232000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] Wrapper.
 [treeopen] Wrapper.core.
 [treeopen] Wrapper.core.compute.
-[treeopen] Wrapper.core.compute.peArray_0.
-[sst_width] 233
-[signals_width] 598
+[sst_width] 295
+[signals_width] 446
 [sst_expanded] 1
-[sst_vpaned_height] 616
+[sst_vpaned_height] 631
+@22
+Wrapper.core.compute.peArray_0.dr_currDenCol_q[31:0]
+Wrapper.core.compute.peArray_0.dr_currRowPtr_q[31:0]
+@28
+Wrapper.core.compute.peArray_0.dr_outWrite_q
+@22
+Wrapper.core.compute.peArray_0.dr_peReqdenXSize_q[6:0]
+@28
+Wrapper.core.compute.peArray_0.dr_valid_q
 @24
-Wrapper.core.compute.peArray_0.io_peReq_bits_denXSize[6:0]
-Wrapper.core.compute.peArray_0.io_peReq_bits_rowIdx[6:0]
-Wrapper.core.compute.peArray_0.io_peReq_bits_sramColVal[15:0]
-Wrapper.core.compute.peArray_0.io_peReq_bits_sramPtr[15:0]
-Wrapper.core.compute.peArray_0.io_peReq_bits_sramDen[15:0]
-Wrapper.core.compute.peArray_0.io_peReq_ready
-Wrapper.core.compute.peArray_0.io_peReq_valid
-Wrapper.core.compute.peArray_0.spCol_io_spReadData_data[31:0]
-Wrapper.core.compute.peArray_0.spPtr_io_spReadCmd_addr[15:0]
-Wrapper.core.compute.peArray_0.spPtr_io_spReadData_data[31:0]
 Wrapper.core.compute.peArray_0.spDen_io_spReadData_data[31:0]
 Wrapper.core.compute.peArray_0.spVal_io_spReadData_data[31:0]
-Wrapper.core.compute.peArray_0.rowPtr1Data[31:0]
-Wrapper.core.compute.peArray_0.rowPtr2Data[31:0]
-Wrapper.core.compute.peArray_0.nonZeroInRow[31:0]
-Wrapper.core.compute.peArray_0.rowPtrSPAddr[15:0]
-Wrapper.core.compute.peArray_0.rowPtrSPAddrNext[15:0]
-Wrapper.core.compute.peArray_0.rowPtrAddr[15:0]
-Wrapper.core.compute.peArray_0.rowPtrAddr_q[15:0]
-Wrapper.core.compute.peArray_0.colIdxAddr[33:0]
-Wrapper.core.compute.peArray_0.denAddr[40:0]
-Wrapper.core.compute.peArray_0.valAddr[33:0]
-Wrapper.core.compute.peArray_0.ptrCurr[31:0]
-Wrapper.core.compute.peArray_0.colCurr[31:0]
-Wrapper.core.compute.peArray_0.colCurr_q[31:0]
-Wrapper.core.compute.peArray_0.denCol[31:0]
-Wrapper.core.compute.peArray_0.denCol_q[31:0]
-Wrapper.core.compute.peArray_0.done
-Wrapper.core.compute.peArray_0.state[2:0]
-Wrapper.core.compute.peArray_0.start
-Wrapper.core.compute.peArray_0.acc[63:0]
-Wrapper.core.compute.peArray_0.acc_q[31:0]
 @28
-Wrapper.core.compute.peArray_0.endOfRow
-Wrapper.core.compute.peArray_0.endofCol
+Wrapper.core.compute.peArray_0.m_valid_q
+@24
+Wrapper.core.compute.peArray_0.m_mac[63:0]
+@22
+Wrapper.core.compute.peArray_1.m_acc_q[31:0]
+Wrapper.core.compute.peArray_0.out_q_io_enq_bits_addr[15:0]
+@25
+Wrapper.core.compute.peArray_0.out_q_io_enq_bits_data[31:0]
+@28
+Wrapper.core.compute.peArray_0.out_q_io_enq_valid
 [pattern_trace] 1
 [pattern_trace] 0

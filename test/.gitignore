@@ -3,3 +3,4 @@ sim_build/
 results.xml
 Wrapper.vcd
 .ipynb_checkpoints/
+.metals/
