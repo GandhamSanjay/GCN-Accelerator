@@ -20,7 +20,7 @@ class CRMaster(implicit p: Parameters) extends CRBase {
   val mp = p(AccKey).memParams
   val launch = Output(Bool())
   val finish = Input(Bool())
-  val ecnt = Vec(cp.nEventCtr, Flipped(ValidIO(UInt(cp.regBits.W))))
+  val ecnt = Input(Vec(cp.nEventCtr, UInt(cp.regBits.W)))
   val vals = Output(Vec(cp.nMmapReg, UInt(cp.regBits.W)))
 }
 
@@ -34,7 +34,7 @@ class CRClient(implicit p: Parameters) extends CRBase {
   val mp = p(AccKey).memParams
   val launch = Input(Bool())
   val finish = Output(Bool())
-  val ecnt = Vec(cp.nEventCtr, ValidIO(UInt(cp.regBits.W)))
+  val ecnt = Output(Vec(cp.nEventCtr, UInt(cp.regBits.W)))
   val vals = Input(Vec(cp.nMmapReg, UInt(cp.regBits.W)))
 }
 /** Control Registers (CR).
@@ -151,7 +151,7 @@ class CR(implicit p: Parameters) extends Module {
      totalTime := totalTime + 1.U
   }
   io.cr.ecnt.zip(slaveReg.slice(5, slaveReg.length)).foreach{
-    case (a,b) => when(a.valid){ b := a.bits }
+    case (a,b) =>  b := a 
   }
   
 

@@ -22,7 +22,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
     val valid = Input(Bool())
     val done = Output(Bool())
     val spWrite = Vec(cp.nScratchPadMem, Decoupled(new SPWriteCmd))
-    val ecnt = ValidIO(UInt(regBits.W))
+    val ecnt = Output(UInt(regBits.W))
   })
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.loadInstQueueEntries))
@@ -164,6 +164,5 @@ when(done){
   loadTime := loadTime + 1.U
 }
 
-io.ecnt.bits := loadTime
-io.ecnt.valid := done
+io.ecnt := loadTime
 }

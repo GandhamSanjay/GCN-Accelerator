@@ -13,6 +13,7 @@ import gcn.core.util._
 class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module with ISAConstants{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
+  val cr = p(AccKey).crParams
   val regBits = p(AccKey).crParams.regBits
   val io = IO(new Bundle {
     val inst = Flipped(Decoupled(UInt(INST_BITS.W)))
@@ -20,7 +21,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val valid = Input(Bool())
     val done = Output(Bool())
     val spOutWrite = Decoupled(new SPWriteCmd(scratchType = "Col"))
-    val ecnt = Vec(p(AccKey).crParams.nComputeEventCtr, ValidIO(UInt(regBits.W)))
+    val ecnt = Output(Vec(p(AccKey).crParams.nComputeEventCtr, UInt(regBits.W)))
   })
 
   // Module instantiation
@@ -30,7 +31,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val arbiter = (Module(new MyRRArbiter(new SPWriteCmd(scratchType = "Out"), cp.nPE)))
   io.spOutWrite <> arbiter.io.out
   val peArray = for (i <- 0 until cp.nPE) yield {
-    Module(new PECSR)
+    Module(new PipelinedPECSR)
   } 
 
   var peAllFree = (for(i <- 0 until cp.nPE) yield {
@@ -69,10 +70,9 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     peArray(i).io.peReq.bits.rowIdx := i.U
     peArray(i).io.spWrite <> io.spWrite
     arbiter.io.in(i) <> peArray(i).io.spOutWrite
-    io.ecnt((4*i)+1) <> peArray(i).io.ecnt(0)
-    io.ecnt((4*i)+2) <> peArray(i).io.ecnt(1)
-    io.ecnt((4*i)+3) <> peArray(i).io.ecnt(2)
-    io.ecnt((4*i)+4) <> peArray(i).io.ecnt(3)
+    for( j <- 0 until cr.nPEEventCtr){
+      io.ecnt((cr.nPEEventCtr*i)+j+1) <> peArray(i).io.ecnt(j)
+    }
   }
   val done = RegInit(false.B)
   io.done := done
@@ -107,6 +107,5 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     computeTime := computeTime + 1.U
   }
 
-  io.ecnt(0).bits := computeTime
-  io.ecnt(0).valid := done
+  io.ecnt(0) := computeTime
 }

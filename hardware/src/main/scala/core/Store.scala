@@ -20,7 +20,7 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
     val me_wr = new MEWriteMaster
     val valid = Input(Bool())
     val done = Output(Bool())
-    val ecnt = ValidIO(UInt(regBits.W))
+    val ecnt = Output(UInt(regBits.W))
   })
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.loadInstQueueEntries))
@@ -139,7 +139,6 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
     storeTime := storeTime + 1.U
   }
 
-  io.ecnt.bits := storeTime
-  io.ecnt.valid := done
+  io.ecnt := storeTime
 
 }
