@@ -50,10 +50,11 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val currRow = RegInit(0.U(32.W))
   val assignStart = (((state === sIdle) && start)
                     || (state === sAssign))
-  val rowRem = dec.io.ySizeSp - currRow
-
+  val rowRem = dec.io.ySizeSp
+  val rowAssignment =  RegInit(VecInit(Seq.fill(cp.nPE)(0.U(cp.blockSize.W))))
+  val peRowsDone = Wire(Vec(cp.nPE, Bool()))
+  val allPeDone = peRowsDone.reduce(_&&_)
   assert (dec.io.ySizeSp =/= 9.U)
-
 
 // Assigns the lowest row index to the first available PE , 2nd lowest row index to next 
 // available PE and so on during the same clock cycle. Sets the valid high according to
@@ -61,13 +62,23 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
 
 
   for(i <- 0 until cp.nPE){
+    when(start){
+      peArray(i).io.peReq.valid := true.B
+      peArray(i).io.peReq.bits.rowIdx := i.U
+      rowAssignment(i) := (i + cp.nPE).U
+    }.otherwise{
+      peArray(i).io.peReq.valid := !peRowsDone(i)
+      peArray(i).io.peReq.bits.rowIdx := rowAssignment(i)
+      when(peArray(i).io.peReq.fire){
+        rowAssignment(i) := rowAssignment(i) + cp.nPE.U
+      }
+    }
+    peRowsDone(i) := rowAssignment(i) >= dec.io.ySizeSp
     peArray(i).io.peReq.bits.denXSize := dec.io.xSizeDen
     peArray(i).io.peReq.bits.spaYSize := dec.io.ySizeSp
     peArray(i).io.peReq.bits.sramColVal := dec.io.sramColVal
     peArray(i).io.peReq.bits.sramDen := dec.io.sramDen
     peArray(i).io.peReq.bits.sramPtr := dec.io.sramPtr
-    peArray(i).io.peReq.valid := start
-    peArray(i).io.peReq.bits.rowIdx := i.U
     peArray(i).io.spWrite <> io.spWrite
     arbiter.io.in(i) <> peArray(i).io.spOutWrite
     for( j <- 0 until cr.nPEEventCtr){
@@ -85,6 +96,11 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     is(sIdle) {
       done := false.B
       when(start){
+        state := sAssign
+      }
+    }
+    is(sAssign){
+      when(allPeDone){
         state := sWait
       }
     }

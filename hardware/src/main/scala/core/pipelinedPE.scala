@@ -70,9 +70,10 @@ class PipelinedPECSR(debug: Boolean = false)(implicit p: Parameters) extends Mod
   val sIdle :: sRowPtr1 :: sRowPtr2 :: Nil = Enum(3)
   val d1_state_q = RegInit(sIdle)
   val d1_ready = (d1_state_q === sIdle) || ((d1_state_q === sRowPtr2) && d1_moving)
-  val d1_isrowPtr1 = ((d1_state_q === sIdle) || (d1_state_q === sRowPtr2))
+  val d1_isrowPtr1 = ((d1_state_q === sIdle) || ((d1_state_q === sRowPtr2) && d1_moving))
   val d1_rowPtrAddr1 = io.peReq.bits.sramPtr + (io.peReq.bits.rowIdx << log2Ceil(cp.blockSize/8))
   val d1_peReq_q = RegEnable(io.peReq.bits, io.peReq.fire)
+  val d1_peReqNext_q = RegNext(d1_peReq_q)
   val d1_rowPtrAddr2 = d1_peReq_q.sramPtr + ((d1_peReq_q.rowIdx + 1.U) << log2Ceil(blockSizeBytes)) 
   io.peReq.ready := d1_ready
 
@@ -103,7 +104,8 @@ class PipelinedPECSR(debug: Boolean = false)(implicit p: Parameters) extends Mod
   val d1_rowPtr1Data_q = RegEnable(spPtr.io.spReadData.data, d1_state_q === sRowPtr1)
   val d1_rowPtr2Data_q = RegEnable(spPtr.io.spReadData.data, d1_state_q === sRowPtr2)
   val d1_rowPtr2Data = Mux(d1_state_q === sRowPtr2, spPtr.io.spReadData.data, d1_rowPtr2Data_q)
-  val d1_valid = (d1_state_q === sRowPtr2) 
+  val d1_isRowEmpty = (d1_rowPtr2Data - d1_rowPtr1Data_q) === 0.U
+  val d1_valid = (d1_state_q === sRowPtr2) && !d1_isRowEmpty
   val d1_currRowPtr = d1_rowPtr1Data_q
   val d1_currDenCol = 0.U(cp.blockSize.W)
 
@@ -127,8 +129,8 @@ class PipelinedPECSR(debug: Boolean = false)(implicit p: Parameters) extends Mod
   val d2_rowPtr2Data_q = RegInit(0.U(cp.blockSize.W))
   val d2_currRowPtr_q = RegInit(0.U(cp.blockSize.W))
   val d2_currDenCol_q = RegInit(0.U(cp.blockSize.W))
-  val d2_peReq_q = Reg(chiselTypeOf(d1_peReq_q))
-  val d2_peReq = Mux(d2_nextValid_q, d2_peReq_q, d1_peReq_q)
+  val d2_peReq_q = Reg(chiselTypeOf(d1_peReqNext_q))
+  val d2_peReq = Mux(d2_nextValid_q, d2_peReq_q, d1_peReqNext_q)
   val d2_currRowPtr = Mux(d2_nextValid_q, d2_nextRowPtr_q, d1_currRowPtr)
   val d2_currDenCol = Mux(d2_nextValid_q, d2_nextDenCol_q, d1_currDenCol)
   val d2_rowPtr1Data = Mux(d2_nextValid_q, d2_rowPtr1Data_q, d1_rowPtr1Data_q)
@@ -136,7 +138,7 @@ class PipelinedPECSR(debug: Boolean = false)(implicit p: Parameters) extends Mod
   val d2_endOfRow_q = RegInit(false.B)
   val d2_endOfCol_q = RegInit(false.B)
   d1_moving := !d2_nextValid
-  d2_valid_q := Mux(d2_nextValid, true.B, d1_valid)
+  d2_valid_q := d2_nextValid || d1_valid
   
   d2_peReq_q := d2_peReq
   d2_rowPtr1Data_q := d2_rowPtr1Data
@@ -172,7 +174,7 @@ class PipelinedPECSR(debug: Boolean = false)(implicit p: Parameters) extends Mod
   val dr_valid_q = RegNext(d2_valid_q)
   val dr_colIdx = spCol.io.spReadData.data
   val dr_peReqdenXSize_q = RegEnable(d2_peReq_q.denXSize, dr_valid_q)
-  val dr_currRowPtr_q = RegEnable(d2_currRowPtr_q, dr_valid_q)
+  val dr_currSpaRow_q = RegEnable(d2_peReq_q.rowIdx, dr_valid_q)
   val dr_currDenCol_q = RegEnable(d2_currDenCol_q, dr_valid_q)
   val dr_outWrite_q = RegEnable(d2_endOfRow_q, dr_valid_q)
   spVal.io.spReadCmd.addr := d2_peReq_q.sramColVal + (d2_currRowPtr_q << log2Ceil(blockSizeBytes))
@@ -190,7 +192,7 @@ class PipelinedPECSR(debug: Boolean = false)(implicit p: Parameters) extends Mod
   val m_sparse = spVal.io.spReadData.data
   val m_mac = m_acc_q + m_dense * m_sparse
   val m_outWrite = dr_outWrite_q
-  out_q.io.enq.bits.addr := (((dr_currRowPtr_q << log2Ceil(cp.blockSize/8))) << Log2(dr_peReqdenXSize_q)) + (dr_currDenCol_q << log2Ceil(cp.blockSize/8))
+  out_q.io.enq.bits.addr := (((dr_currSpaRow_q << log2Ceil(cp.blockSize/8))) << Log2(dr_peReqdenXSize_q)) + (dr_currDenCol_q << log2Ceil(cp.blockSize/8))
   out_q.io.enq.valid := m_outWrite && m_valid_q
   out_q.io.enq.bits.data :=  m_mac
   when(m_outWrite){
