@@ -28,7 +28,7 @@ case class CoreParams(
   val loadInstQueueEntries: Int = 1,
   val computeInstQueueEntries: Int = 1,
   val peOutputScratchQueueEntries: Int = 10,
-  val loadDataQueueEntries: Int = 1,
+  val loadDataQueueEntries: Int = 10,
   val Compression: String = "CSR",
   val scratchColSize: Int = 1024*8,
   val scratchDenSize: Int = 1024*8,

@@ -76,7 +76,7 @@ class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p
   }
 
   when(io.writeEn){
-    val writeIdx = waddr >> log2Ceil(blockSize/8)
+    val writeIdx = waddr >> log2Ceil(mp.dataBits/8)
     for (i <- 0 until (nBanks)){
       ram(i).write(writeIdx, wdata((i+1)*blockSize - 1, i*blockSize))
     }
