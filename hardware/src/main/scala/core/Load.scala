@@ -111,7 +111,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
               }
             }
           }.otherwise{
-            rlenRem := rlenRem - rlen
+            rlenRem := rlenRem - 1.U
           }
       }
     }
