@@ -124,6 +124,7 @@ class FetchDecode extends Module with ISAConstants{
         LPTR -> List(Y, OP_L),
         LVAL -> List(Y, OP_L),
         LDEN -> List(Y, OP_L),
+        LPSUM -> List(Y, OP_L),
         SPMM -> List(Y, OP_C),
         SOUT -> List(Y, OP_S)
       )
@@ -149,16 +150,18 @@ class LoadDecode extends Module with ISAConstants{
     val isVal = Output(Bool())
     val isCol = Output(Bool())
     val isPtr = Output(Bool())
+    val isPsum = Output(Bool())
     val xSize = Output(UInt(M_XSIZE_BITS.W))
     val ySize = Output(UInt(M_YSIZE_BITS.W))
     val dramOffset = Output(UInt(M_DRAM_OFFSET_BITS.W))
     val sramOffset = Output(UInt(M_SRAM_OFFSET_BITS.W))
   })
   val dec = io.inst.asTypeOf(new MemDecode)
-  io.isSeq := io.isVal || io.isCol || io.isPtr
+  io.isSeq := io.isVal || io.isCol || io.isPtr || io.isPsum
   io.isVal := io.inst === LVAL
   io.isCol := io.inst === LCOL
   io.isPtr := io.inst === LPTR
+  io.isPsum := io.inst === LPSUM
   io.xSize := dec.xsize
   io.ySize := dec.ysize
   io.sramOffset := dec.sram_offset

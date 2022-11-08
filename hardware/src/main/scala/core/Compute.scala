@@ -56,10 +56,6 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val allPeDone = peRowsDone.reduce(_&&_)
   assert (dec.io.ySizeSp =/= 9.U)
 
-// Assigns the lowest row index to the first available PE , 2nd lowest row index to next 
-// available PE and so on during the same clock cycle. Sets the valid high according to
-// number of higher priority PE that are free and number of rows remaining to be assigned
-
 
   for(i <- 0 until cp.nPE){
     when(start){

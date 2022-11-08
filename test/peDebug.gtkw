@@ -1,44 +1,32 @@
 [*]
 [*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
-[*] Mon Nov  7 00:55:54 2022
+[*] Mon Nov  7 04:27:32 2022
 [*]
 [dumpfile] "/home/sanjay/research/GCN-Accelerator/test/Wrapper.vcd"
-[dumpfile_mtime] "Mon Nov  7 00:54:11 2022"
-[dumpfile_size] 395985
+[dumpfile_mtime] "Mon Nov  7 04:15:28 2022"
+[dumpfile_size] 364649
 [savefile] "/home/sanjay/research/GCN-Accelerator/test/peDebug.gtkw"
-[timestart] 182270
+[timestart] 203080
 [size] 1920 1043
 [pos] 1797 -78
-*-14.000000 232000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-14.000000 224000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] Wrapper.
 [treeopen] Wrapper.core.
 [treeopen] Wrapper.core.compute.
-[sst_width] 295
-[signals_width] 446
+[sst_width] 343
+[signals_width] 441
 [sst_expanded] 1
-[sst_vpaned_height] 631
+[sst_vpaned_height] 298
 @22
-Wrapper.core.compute.peArray_0.dr_currDenCol_q[31:0]
-Wrapper.core.compute.peArray_0.dr_currRowPtr_q[31:0]
+Wrapper.core.compute.peArray_0.d1_peReq_q_rowIdx[6:0]
 @28
-Wrapper.core.compute.peArray_0.dr_outWrite_q
+Wrapper.core.compute.peArray_0.d1_valid
+Wrapper.core.compute.peArray_0.d2_valid_q
 @22
-Wrapper.core.compute.peArray_0.dr_peReqdenXSize_q[6:0]
+Wrapper.core.compute.peArray_0.d2_peReq_q_rowIdx[6:0]
 @28
-Wrapper.core.compute.peArray_0.dr_valid_q
-@24
-Wrapper.core.compute.peArray_0.spDen_io_spReadData_data[31:0]
-Wrapper.core.compute.peArray_0.spVal_io_spReadData_data[31:0]
-@28
-Wrapper.core.compute.peArray_0.m_valid_q
-@24
-Wrapper.core.compute.peArray_0.m_mac[63:0]
-@22
-Wrapper.core.compute.peArray_1.m_acc_q[31:0]
-Wrapper.core.compute.peArray_0.out_q_io_enq_bits_addr[15:0]
-@25
-Wrapper.core.compute.peArray_0.out_q_io_enq_bits_data[31:0]
-@28
-Wrapper.core.compute.peArray_0.out_q_io_enq_valid
+Wrapper.core.compute.peArray_0.d2_nextValid_q
+@29
+Wrapper.core.compute.peArray_0.d2_nextValid
 [pattern_trace] 1
 [pattern_trace] 0

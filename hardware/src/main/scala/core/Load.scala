@@ -53,7 +53,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   // instruction queue
   dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)
 
-  val scratchSel = Cat(dec.io.isCol, dec.io.isPtr, !dec.io.isSeq, dec.io.isVal) // col,ptr,den,val
+  val scratchSel = Cat(dec.io.isPsum, dec.io.isCol, dec.io.isPtr, !dec.io.isSeq, dec.io.isVal) // col,ptr,den,val
 
   // control
   switch(state) {

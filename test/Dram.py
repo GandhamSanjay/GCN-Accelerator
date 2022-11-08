@@ -31,6 +31,7 @@ W = np.array([[2, 2],
             [3, 1],
             [1, 2]])
 O = np.matmul(I,W)
+psum = np.ones(O.shape, dtype =int)
 val = np.array([11,22,33,44])
 col = np.array([1,0,3,1])
 row = np.array([0,1,3,3,4])
@@ -43,11 +44,13 @@ rowBin = dataGen.arrayToBinary(row)
 colBin = dataGen.arrayToBinary(col)
 valBin = dataGen.arrayToBinary(val)
 denBin = dataGen.matrixToBinary(den)
+psumBin = dataGen.matrixToBinary(psum)
 rowAddr = pow(2,8)
 colAddr = 2 * pow(2,8)
 valAddr = 3 * pow(2,8)
 denAddr = 4 * pow(2,8)
-outAddr = 5 * pow(2,8)
+outAddr = 6 * pow(2,8)
+psumAddr = 5 * pow(2,8)
 (_,x) = den.shape
 (y,_) = I.shape
 instGen = inst()
@@ -56,6 +59,7 @@ instr = instr + instGen.load(xsize = row.size, id = 'row', dram_offset = rowAddr
 instr = instr + instGen.load(xsize = col.size, id = 'col', dram_offset = colAddr, sram_offset = 0)
 instr = instr + instGen.load(xsize = val.size, id = 'val', dram_offset = valAddr, sram_offset = 0)
 instr = instr + instGen.load(xsize = den.size, id = 'den', dram_offset = denAddr, sram_offset = 0)
+instr = instr + instGen.load(xsize = psum.size, id = 'psum', dram_offset = psumAddr, sram_offset = 0)
 instr = instr + instGen.spMM(ysize = y, xsize = x)
 instr = instr + instGen.store(xsize = O.size, dram_offset = outAddr)
 instCount = len(instr)/128
@@ -75,5 +79,8 @@ dram = dram + valBin
 while((len(dram)/8) != denAddr):
     dram = dram + '0'*32
 dram = dram + denBin
+while((len(dram)/8) != psumAddr):
+    dram = dram + '0'*32
+dram = dram + psumBin
 f = open('ram.txt','w')
 f.write(dram)

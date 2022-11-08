@@ -73,7 +73,7 @@ object ISA {
       ("finish", "11"))
 
   private val memId: HashMap[String, String] =
-    HashMap(("col", "000"), ("ptr", "001"), ("val", "010"), ("den", "011"), ("out", "100"))
+    HashMap(("col", "000"), ("ptr", "001"), ("val", "010"), ("den", "011"), ("out", "100"), ("psum", "101"))
 
   private def dontCare(bits: Int): String = "?" * bits
 
@@ -103,6 +103,7 @@ object ISA {
   def LVAL = load("val")
   def LDEN = load("den")
   def LOUT = load("out")
+  def LPSUM = load("psum")
   def SPMM = spmm
   def SOUT = store("out")
 

@@ -42,6 +42,7 @@ class PipelinedPECSR(debug: Boolean = false)(implicit p: Parameters) extends Mod
   val spCol = Module(new Scratchpad(scratchType = "Col"))
   val spPtr = Module(new Scratchpad(scratchType = "Ptr"))
   val spDen = Module(new Scratchpad(scratchType = "Den"))
+  val spPsum = Module(new Scratchpad(scratchType = "Psum"))
   val out_q = Module(new Queue(new SPWriteCmd(scratchType = "Out"), cp.peOutputScratchQueueEntries))
   io.spWrite(0).bits <> spVal.io.spWrite
   writeEnVec(0)      <> spVal.io.writeEn
@@ -51,6 +52,8 @@ class PipelinedPECSR(debug: Boolean = false)(implicit p: Parameters) extends Mod
   writeEnVec(2)      <> spPtr.io.writeEn
   io.spWrite(3).bits <> spCol.io.spWrite
   writeEnVec(3)      <> spCol.io.writeEn
+  io.spWrite(4).bits <> spPsum.io.spWrite
+  writeEnVec(4)      <> spPsum.io.writeEn
   io.spOutWrite <> out_q.io.deq
 
   val blockSizeBytes = (cp.blockSize/8)
@@ -137,6 +140,7 @@ class PipelinedPECSR(debug: Boolean = false)(implicit p: Parameters) extends Mod
   val d2_rowPtr2Data = Mux(d2_nextValid_q, d2_rowPtr2Data_q, d1_rowPtr2Data_q)
   val d2_endOfRow_q = RegInit(false.B)
   val d2_endOfCol_q = RegInit(false.B)
+  val d2_isNewOutput_q = RegNext(d2_currRowPtr === d2_rowPtr1Data)
   d1_moving := !d2_nextValid
   d2_valid_q := d2_nextValid || d1_valid
   
@@ -177,27 +181,28 @@ class PipelinedPECSR(debug: Boolean = false)(implicit p: Parameters) extends Mod
   val dr_currSpaRow_q = RegEnable(d2_peReq_q.rowIdx, dr_valid_q)
   val dr_currDenCol_q = RegEnable(d2_currDenCol_q, dr_valid_q)
   val dr_outWrite_q = RegEnable(d2_endOfRow_q, dr_valid_q)
+  val dr_isNewOutput_q = RegEnable(d2_isNewOutput_q, dr_valid_q)
   spVal.io.spReadCmd.addr := d2_peReq_q.sramColVal + (d2_currRowPtr_q << log2Ceil(blockSizeBytes))
   spDen.io.spReadCmd.addr := d2_peReq_q.sramDen + ((dr_colIdx << log2Ceil(blockSizeBytes)) << Log2(d2_peReq_q.denXSize)) + (d2_currDenCol_q << log2Ceil(blockSizeBytes))
-  
+  spPsum.io.spReadCmd.addr := (((d2_peReq_q.rowIdx << log2Ceil(cp.blockSize/8))) << Log2(d2_peReq_q.denXSize)) + (d2_currDenCol_q << log2Ceil(cp.blockSize/8))
   when(dr_valid_q){
     drTime := drTime + 1.U
   }
   /* Pipeline Stage: M (MAC)
   Cycles = 1
   */
+  val m_isNewRow = dr_isNewOutput_q
   val m_acc_q = RegInit(0.U(cp.blockSize.W))
   val m_valid_q = RegNext(dr_valid_q)
   val m_dense = spDen.io.spReadData.data
   val m_sparse = spVal.io.spReadData.data
-  val m_mac = m_acc_q + m_dense * m_sparse
+  val m_multiply = (m_dense * m_sparse)
+  val m_mac = Mux(dr_isNewOutput_q, spPsum.io.spReadData.data + m_multiply , m_acc_q + m_multiply) 
   val m_outWrite = dr_outWrite_q
   out_q.io.enq.bits.addr := (((dr_currSpaRow_q << log2Ceil(cp.blockSize/8))) << Log2(dr_peReqdenXSize_q)) + (dr_currDenCol_q << log2Ceil(cp.blockSize/8))
   out_q.io.enq.valid := m_outWrite && m_valid_q
   out_q.io.enq.bits.data :=  m_mac
-  when(m_outWrite){
-    m_acc_q := 0.U
-  }.elsewhen(m_valid_q){
+  when(m_valid_q){
     m_acc_q := m_mac
   }.otherwise{
     m_acc_q := m_acc_q

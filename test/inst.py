@@ -11,7 +11,7 @@ class inst:
 ### Generates load instructions for GCN-Accelerator
 
     def load(self,  dep = '0000', id = 'col', sram_offset = 0, dram_offset = 0, xsize = 0, ysize = 0):
-        idMap = {'col': '000','row': '001', 'val': '010', 'den': '011', 'out': '100'}
+        idMap = {'col': '000','row': '001', 'val': '010', 'den': '011', 'out': '100', 'psum': '101'}
         op = '00'
         inst = op[::-1] + dep[::-1] + idMap.get(id)[::-1] + binary_repr(dram_offset, 32)[::-1]+ binary_repr(sram_offset, 16)[::-1]  
         inst =  inst + binary_repr(xsize, 7)[::-1] + binary_repr(ysize, 0)[::-1]
@@ -42,7 +42,7 @@ class inst:
         return instSeq
     
     def store(self,  dep = '0000', id = 'out', sram_offset = 0, dram_offset = 0, xsize = 0, ysize = 0):
-        idMap = {'col': '000','ptr': '001', 'val': '010', 'den': '011', 'out': '100'}
+        idMap = {'col': '000','ptr': '001', 'val': '010', 'den': '011', 'out': '100', 'psum': '101'}
         op = '01'
         inst = op[::-1] + dep[::-1] + idMap.get(id)[::-1] + binary_repr(dram_offset, 32)[::-1]+ binary_repr(sram_offset, 16)[::-1]  
         inst =  inst + binary_repr(xsize, 7)[::-1] + binary_repr(ysize, 0)[::-1]
