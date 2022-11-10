@@ -21,13 +21,13 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
     val me_rd = new MEReadMaster
     val valid = Input(Bool())
     val done = Output(Bool())
-    val spWrite = Vec(cp.nScratchPadMem, Decoupled(new SPWriteCmd))
+    val spWrite = Decoupled(new SPWriteCmd)
     val ecnt = Output(UInt(regBits.W))
   })
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.loadInstQueueEntries))
   val data_qEntries = (1 << mp.lenBits)
-  val data_q = Module(new Queue(new SPWriteCmdWithSel, data_qEntries))
+  val data_q = Module(new Queue(new SPWriteCmd, data_qEntries))
   val dec = Module(new LoadDecode)
   val loadTime = RegInit(0.U(regBits.W))
   
@@ -135,9 +135,8 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   inst_q.io.deq.ready := (state === sIdle) && io.valid
 
   // data queue
-  data_q.io.enq.bits.spCmd.data := io.me_rd.data.bits.data
-  data_q.io.enq.bits.spSel := scratchSel
-  data_q.io.enq.bits.spCmd.addr := saddr
+  data_q.io.enq.bits.data := io.me_rd.data.bits.data
+  data_q.io.enq.bits.addr := saddr
   data_q.io.enq.valid := (state === sSeqReadData) && io.me_rd.data.valid
   
   // dram read
@@ -148,14 +147,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   io.me_rd.data.ready := true.B
 
   // Data Write Queue to multiple scratchpad
-  for(i <- 0 until cp.nScratchPadMem){
-    io.spWrite(i).bits := data_q.io.deq.bits.spCmd
-    io.spWrite(i).valid := data_q.io.deq.bits.spSel(i) && data_q.io.deq.valid
-  }
-
-  data_q.io.deq.ready := (for(i <- 0 until cp.nScratchPadMem) yield {
-    data_q.io.deq.bits.spSel(i) && io.spWrite(i).ready
-  }).reduce(_||_)
+  io.spWrite <> data_q.io.deq
   
 // Load execution time
 when(done){

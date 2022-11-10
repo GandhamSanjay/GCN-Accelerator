@@ -20,11 +20,6 @@ import ISA._
  * 
  */
 
-class SPWriteCmdWithSel(implicit p: Parameters) extends Bundle{
-  val cp = p(AccKey).coreParams
-  val spCmd = new SPWriteCmd
-  val spSel = UInt(cp.nScratchPadMem.W)
-}
 
 class SPWriteCmd(val scratchType: String = "Col")(implicit p: Parameters) extends Bundle{
   val mp = p(AccKey).memParams
@@ -32,14 +27,6 @@ class SPWriteCmd(val scratchType: String = "Col")(implicit p: Parameters) extend
   val addr = UInt(M_SRAM_OFFSET_BITS.W)
   val data = if(scratchType == "Out"){UInt(cp.blockSize.W)}else{UInt(mp.dataBits.W)}
 }
-
-class SPMaskWriteCmd(val scratchType: String = "Col")(implicit p: Parameters) extends Bundle{
-  val mp = p(AccKey).memParams
-  val cp = p(AccKey).coreParams
-  val addr = UInt(M_SRAM_OFFSET_BITS.W)
-  val mask = Vec(mp.dataBits/cp.blockSize, Bool())
-  val data = if(scratchType == "Out"){UInt(cp.blockSize.W)}else{UInt(mp.dataBits.W)}
-} 
 
 class SPReadCmd(implicit p: Parameters) extends Bundle{
   val cp = p(AccKey).coreParams
@@ -53,18 +40,18 @@ class SPReadData(val scratchType: String = "Col")(implicit p: Parameters) extend
   val data = if(scratchType == "Out"){UInt(mp.dataBits.W)}else{UInt(cp.blockSize.W)}
 }
 
-// Masked Writes 512 bits and Masked reads 512 bits at a time
-class GlobalBuffer(scratchType: String = "Col", debug: Boolean = false)(implicit p: Parameters)extends Module with ISAConstants{
+// Masked Writes 512 bits and reads 512 bits at a time.
+class GlobalBuffer()(implicit p: Parameters)extends Module with ISAConstants{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
 
     // Scratch size params
   val blockSize = cp.blockSize
-  val scratchSize = cp.scratchSizeMap(scratchType)/mp.dataBits
+  val scratchSize = cp.globalBufferSize/mp.dataBits
   val nBanks = mp.dataBits/blockSize
   
   val io = IO(new Bundle {
-    val spWrite = Input(new SPMaskWriteCmd)
+    val spWrite = Input(new SPWriteCmd)
     val spReadCmd = Input(new SPReadCmd)
     val spReadData = Output(new SPReadData)
     val writeEn = Input(Bool())
@@ -86,11 +73,15 @@ class GlobalBuffer(scratchType: String = "Col", debug: Boolean = false)(implicit
   when(io.writeEn){
     val writeIdx = waddr >> log2Ceil(mp.dataBits/8)
     for (i <- 0 until (nBanks)){
-      when(io.spWrite.mask(i)){
-        ram(i).write(writeIdx, wdata((i+1)*blockSize - 1, i*blockSize))
-      }
+      ram(i).write(writeIdx, wdata((i+1)*blockSize - 1, i*blockSize))
     }
   }
+
+  val bankIdx =  raddr >> log2Ceil(mp.dataBits/8)
+  for (i <- 0 until (nBanks)){
+    rdata(i) := ram(i).read(bankIdx, true.B)
+  }
+  io.spReadData.data := rdata
 }
 
 // Writes 512 bits and reads 32 bits at a time 

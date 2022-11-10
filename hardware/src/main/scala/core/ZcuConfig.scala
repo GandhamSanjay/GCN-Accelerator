@@ -34,6 +34,7 @@ case class CoreParams(
   val scratchDenSize: Int = 1024*8*1024,
   val scratchValSize: Int = 1024*8*1024,
   val scratchPtrSize: Int = 1024*8*1024,
+  val globalBufferSize: Int = 1024*8*1024,
   val blockSize: Int = 32,
   // val scratchBankBlockSize: Int = 256,
   val nPE: Int = 2,
