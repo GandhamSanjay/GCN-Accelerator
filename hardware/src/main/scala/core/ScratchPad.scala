@@ -81,7 +81,8 @@ class GlobalBuffer()(implicit p: Parameters)extends Module with ISAConstants{
   for (i <- 0 until (nBanks)){
     rdata(i) := ram(i).read(bankIdx, true.B)
   }
-  io.spReadData.data := rdata
+  io.spReadData.data := rdata.reduce(Cat(_,_))
+  assert(rdata(0) =/= 19.U)
 }
 
 // Writes 512 bits and reads 32 bits at a time 

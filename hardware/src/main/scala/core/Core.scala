@@ -28,7 +28,8 @@ class Core(implicit p: Parameters) extends Module {
   // val spOut = Module(new OutputScratchpad(scratchType = "Out"))
   val start = Wire(Bool())
 
-  globalBuffer.io.spWrite <> load.io.spWrite
+  globalBuffer.io.spWrite <> load.io.spWrite.bits
+  load.io.spWrite.ready := true.B
   globalBuffer.io.writeEn := load.io.spWrite.fire
   globalBuffer.io.spReadCmd.addr := 0.U
   io.cr.ecnt(0) := 0.U
@@ -81,7 +82,7 @@ class Core(implicit p: Parameters) extends Module {
     }
     is(sLoad){
       when(load.io.done){
-        when(ctr === 5.U){
+        when(ctr === 4.U){
           state := sFinish
         }.otherwise{
           state := sLoad
