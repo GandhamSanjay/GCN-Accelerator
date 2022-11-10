@@ -1,11 +1,9 @@
-# Baseline GCN-Accelerator
-- Computes sparse-dense matrix multiplication
+# Pipelined GCN-Accelerator
+- Computes sparse-dense matrix multiplication in a pipelined manner
 - Decouples access execute but dependency checking not implemented in the hardware
-- Core executes 4 loads and then a compute instruction and a store instruction
+- Core executes 5 loads and then a compute instruction and a store instruction
 - Global output scratchpad with output value queue for each PE
 ## Todo
-- local psum scratchpad
-- psum scratchpad integrated into MAC
 - masked writes to and from scratchpad
 - Tiling
 - dependence checking
