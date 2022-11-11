@@ -20,12 +20,20 @@ import ISA._
  * 
  */
 
+ class SPWriteCmdWithSel(implicit p: Parameters) extends Bundle{
+  val mp = p(AccKey).memParams
+  val cp = p(AccKey).coreParams
+  val addr = UInt(M_SRAM_OFFSET_BITS.W)
+  val data = UInt(cp.bankBlockSize.W)
+  val spSel = UInt(cp.nScratchPadMem.W)
+}
+
 
 class SPWriteCmd(val scratchType: String = "Col")(implicit p: Parameters) extends Bundle{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
   val addr = UInt(M_SRAM_OFFSET_BITS.W)
-  val data = if(scratchType == "Out"){UInt(cp.blockSize.W)}else{UInt(mp.dataBits.W)}
+  val data = if(scratchType == "Global"){UInt(mp.dataBits.W)}else{UInt(cp.bankBlockSize.W)}
 }
 
 class SPReadCmd(implicit p: Parameters) extends Bundle{
@@ -85,10 +93,12 @@ class GlobalBuffer()(implicit p: Parameters)extends Module with ISAConstants{
     rdata(i) := ram(i).read(bankIdx, true.B)
   }
   io.spReadData.data := MuxTree(bankSelPrev, rdata)
+
+  assert(rdata(0) =/= 19.U)
 }
 
 // Writes 512 bits and reads 32 bits at a time 
-class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p: Parameters)extends Module with ISAConstants{
+class Scratchpad(scratchType: String = "Col", masked: Boolean = false)(implicit p: Parameters)extends Module with ISAConstants{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
 
@@ -102,6 +112,7 @@ class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p
     val spReadCmd = Input(new SPReadCmd)
     val spReadData = Output(new SPReadData)
     val writeEn = Input(Bool())
+    val mask = if (masked) Some(Input(UInt(log2Ceil(nBanks).W))) else None
   })
 
   // Write
@@ -119,10 +130,19 @@ class Scratchpad(scratchType: String = "Col", debug: Boolean = false)(implicit p
 
   when(io.writeEn){
     val writeIdx = waddr >> log2Ceil(mp.dataBits/8)
-    for (i <- 0 until (nBanks)){
-      ram(i).write(writeIdx, wdata((i+1)*blockSize - 1, i*blockSize))
+    if(masked){
+      for (i <- 0 until (nBanks)){
+        when(io.mask.get(i).asBool){
+          ram(i).write(writeIdx, wdata((i+1)*blockSize - 1, i*blockSize))
+        }
+      }
+    }else{
+      for (i <- 0 until (nBanks)){
+        ram(i).write(writeIdx, wdata((i+1)*blockSize - 1, i*blockSize))
+      }
     }
   }
+  
  
   val raddrByteAlign =  (raddr >> log2Ceil(blockSize/8))
   val bankSel = (raddrByteAlign)(log2Ceil(nBanks) - 1, 0)

@@ -57,12 +57,12 @@ outAddr = 6 * pow(2,10)
 (y,_) = I.shape
 instGen = inst()
 instr = ''
-instr = instr + instGen.load(xsize = row.size, id = 'row', dram_offset = rowAddr, sram_offset = 0)
-instr = instr + instGen.load(xsize = col.size, id = 'col', dram_offset = colAddr, sram_offset = 0)
-instr = instr + instGen.load(xsize = val.size, id = 'val', dram_offset = valAddr, sram_offset = 0)
-instr = instr + instGen.load(xsize = den.size, id = 'den', dram_offset = denAddr, sram_offset = 0)
-instr = instr + instGen.load(xsize = psum.size, id = 'psum', dram_offset = psumAddr, sram_offset = 0)
-instr = instr + instGen.spMM(ysize = y, xsize = x)
+instr = instr + instGen.load(xsize = row.size, id = 'row', dram_offset = rowAddr, sram_offset = rowAddr)
+instr = instr + instGen.load(xsize = col.size, id = 'col', dram_offset = colAddr, sram_offset = colAddr)
+instr = instr + instGen.load(xsize = val.size, id = 'val', dram_offset = valAddr, sram_offset = valAddr)
+# instr = instr + instGen.load(xsize = den.size, id = 'den', dram_offset = denAddr, sram_offset = 0)
+# instr = instr + instGen.load(xsize = psum.size, id = 'psum', dram_offset = psumAddr, sram_offset = 0)
+instr = instr + instGen.spMM(sram_offset_col = colAddr, sram_offset_ptr = rowAddr, sram_offset_den = denAddr, sram_offset_val = valAddr, den_size = den.size, col_size = col.size, row_size = row.size)
 instr = instr + instGen.store(xsize = O.size, dram_offset = outAddr)
 instCount = len(instr)/128
 while(instCount%4 != 0):

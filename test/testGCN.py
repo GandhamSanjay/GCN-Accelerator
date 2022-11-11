@@ -66,8 +66,8 @@ async def my_first_test(dut):
     tb = TB(dut)
     await tb.launch(inst_cnt = 4)
     addr = 0x000c
-    while((await tb.axi_master.read_dwords(addr,1))[0] == 0):
-        await Timer(1, units='ns')
+    # while((await tb.axi_master.read_dwords(addr,1))[0] == 0):
+    #     await Timer(1, units='ns')
     # print("*********************************Execution Metrics*******************************")
     # addr = addr + 0x0004
     # print(f"Total time = {await tb.axi_master.read_dwords(addr,1)}")
@@ -87,4 +87,4 @@ async def my_first_test(dut):
     #     addr = addr + 0x0004
     #     print(f"PE time = {await tb.axi_master.read_dwords(addr,1)}")
     #     addr = addr + 0x0004
-    await Timer(10, units='ns')
+    await Timer(1, units='us')

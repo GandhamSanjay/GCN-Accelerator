@@ -18,10 +18,10 @@ class inst:
         inst = inst + '0'*(128-len(inst))
         return inst
 
-    def spMM(self,  dep = '0000', sram_offset_col = 0, sram_offset_ptr = 0, sram_offset_den = 0, xsize = 0, ysize = 0):
+    def spMM(self,  dep = '0000', sram_offset_col = 0, sram_offset_ptr = 0, sram_offset_den = 0, sram_offset_val = 0, den_size = 0, col_size = 0, row_size = 0):
         op = '10'
         inst = op[::-1] + dep[::-1] + binary_repr(sram_offset_col, 16)[::-1] + binary_repr(sram_offset_ptr, 16)[::-1] + binary_repr(sram_offset_den, 16)[::-1]
-        inst =  inst + binary_repr(xsize, 7)[::-1] + binary_repr(ysize, 7)[::-1]
+        inst =  inst + binary_repr(sram_offset_val, 16)[::-1] + binary_repr(den_size, 7)[::-1] + binary_repr(col_size, 7)[::-1] + binary_repr(row_size, 7)[::-1]
         inst = inst + '0'*(128-len(inst))
         return inst
 

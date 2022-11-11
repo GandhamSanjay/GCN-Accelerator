@@ -13,7 +13,8 @@ import gcn.core.util._
 class VRTableEntry()(implicit p: Parameters) extends Bundle{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
-  val GID =  Vec(cp.nGroups, UInt(log2Ceil(cp.nGroups).W))
+  val nRows = UInt(32.W)
+  val isVRWithNextGroup = Bool()
 }
 
 class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module with ISAConstants{
@@ -27,87 +28,107 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val gbReadData = Input(new SPReadData)
     val valid = Input(Bool())
     val done = Output(Bool())
-    // val spOutWrite = Decoupled(new SPWriteCmd(scratchType = "Col"))
-    // val ecnt = Output(Vec(p(AccKey).crParams.nComputeEventCtr, UInt(regBits.W)))
   })
-  io.gbReadCmd.addr := 0.U
+  val gbAddr = RegInit(0.U(M_SRAM_OFFSET_BITS.W))
+  val gbInc = WireDefault(0.U(M_SRAM_OFFSET_BITS.W))
+  val gbRdata = io.gbReadData.data
+  io.gbReadCmd.addr := Mux(start, rowPtrAddr , gbAddr)
+  val nNonZeroPerGroup =  dec.io.colSize >> log2Ceil(cp.nGroups)
+
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
   val dec = Module(new ComputeDecode)
-//   val computeTime = RegInit(0.U(regBits.W))
-//   val arbiter = (Module(new MyRRArbiter(new SPWriteCmd(scratchType = "Out"), cp.nPE)))
-//   io.spOutWrite <> arbiter.io.out
+  val vRTable = SyncReadMem(cp.nGroups, new VRTableEntry)
+  val groupArray = for(i <- 0 until cp.nGroups) yield {
+    Module(new Group)
+  }
 
-  // val groupArray = for (i <- 0 until cp.nGroups) yield {
-  //   Module(new Group)
-  // }
-
-//   var peAllFree = (for(i <- 0 until cp.nPE) yield {
-//     peArray(i).io.free
-//   }).reduce(_&&_)
- 
-
-//   // state machine
-  val sIdle :: sDataMove :: sCompute :: sWait :: sDone :: Nil = Enum(5)
+  // state machine
+  val sIdle :: sDataMoveRow :: sDataMoveCol :: sDataMoveVal :: sDataMoveDen :: sCompute :: sWait :: sDone :: Nil = Enum(8)
   val state = RegInit(sIdle)
+  val isDataMove  = (state === sDataMoveRow) ||(state === sDataMoveCol) ||(state === sDataMoveVal) ||(state === sDataMoveDen)
   val start = inst_q.io.deq.fire
   val ctr = RegInit(0.U(5.W))
-
   val inst = RegEnable(inst_q.io.deq.bits, start)
   val blockSizeBytes = (cp.blockSize/8)
-  val sramSize = cp.scratchValSize/cp.blockSize
-
-  val VRTable = SyncReadMem(cp.nGroups + 1, new VRTableEntry)
-//   val currRow = RegInit(0.U(32.W))
-//   val assignStart = (((state === sIdle) && start)
-//                     || (state === sAssign))
-//   val rowRem = dec.io.ySizeSp
-//   val rowAssignment =  RegInit(VecInit(Seq.fill(cp.nPE)(0.U(cp.blockSize.W))))
-//   val peRowsDone = Wire(Vec(cp.nPE, Bool()))
-//   val allPeDone = peRowsDone.reduce(_&&_)
-//   assert (dec.io.ySizeSp =/= 9.U)
-
-
-//   for(i <- 0 until cp.nPE){
-//     when(start){
-//       peArray(i).io.peReq.valid := true.B
-//       peArray(i).io.peReq.bits.rowIdx := i.U
-//       rowAssignment(i) := (i + cp.nPE).U
-//     }.otherwise{
-//       peArray(i).io.peReq.valid := !peRowsDone(i)
-//       peArray(i).io.peReq.bits.rowIdx := rowAssignment(i)
-//       when(peArray(i).io.peReq.fire){
-//         rowAssignment(i) := rowAssignment(i) + cp.nPE.U
-//       }
-//     }
-//     peRowsDone(i) := rowAssignment(i) >= dec.io.ySizeSp
-//     peArray(i).io.peReq.bits.denXSize := dec.io.xSizeDen
-//     peArray(i).io.peReq.bits.spaYSize := dec.io.ySizeSp
-//     peArray(i).io.peReq.bits.sramColVal := dec.io.sramColVal
-//     peArray(i).io.peReq.bits.sramDen := dec.io.sramDen
-//     peArray(i).io.peReq.bits.sramPtr := dec.io.sramPtr
-//     peArray(i).io.spWrite <> io.spWrite
-//     arbiter.io.in(i) <> peArray(i).io.spOutWrite
-//     for( j <- 0 until cr.nPEEventCtr){
-//       io.ecnt((cr.nPEEventCtr*i)+j+1) <> peArray(i).io.ecnt(j)
-//     }
-//   }
+  val bankBlockSizeBytes = (cp.bankBlockSize/8)
+  // val sramSize = cp.scratchValSize/cp.blockSize
   val done = RegInit(false.B)
   io.done := done
-
-  // instruction queue
   dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)
+  val groupSel = RegInit(0.U(log2Ceil(cp.nGroups).W))
+
+  // RowPtr Splitting
+  val rowPtrBase = dec.io.sramPtr
+  val rowPtrDataBlock = for(i <- 0 until (cp.bankBlockSize/cp.blockSize))yield{
+    gbRdata((((i+1)*cp.blockSize) -1), i*cp.blockSize)
+  }
+  val rowPtrEnd = rowPtrDataBlock.map(_ >= (groupSel << Log2(nNonZeroPerGroup)))
+  val rowPtrFin = rowPtrEnd.reduce(_||_)
+  val rowPtrInc = RegInit(bankBlockSizeBytes.U(32.W))
+  val rowPtrGroupFin = (groupSel === (cp.nGroups - 1).U)
+  when(start || (state === sDataMoveRow)){
+    rowPtrInc := rowPtrInc + bankBlockSizeBytes.U
+    when(rowPtrFin){
+      groupSel := groupSel + 1.U 
+    }
+  }
+  val rowPtrWriteAddr = RegNext(rowPtrAddr)
+  val rowPtrWriteMask = rowPtrEnd.map(!_)
+  val rowPtrAddr = rowPtrBase + rowPtrInc
+  val rowPtrWriteEn =  rowPtrWriteMask.reduce(_||_)
+
+    // ColIdx Splitting
+  val colIdxBase = dec.io.sramCol
+  
+
+  for(i <- 0 until cp.nGroups){
+    groupArray(i).io.spWrite.bits.spSel :=
+      MuxLookup(state,
+        2.U, // default
+        Array(
+          sDataMoveVal -> 0.U,
+          sDataMoveDen -> 1.U,
+          sDataMoveRow -> 2.U,
+          sDataMoveCol -> 3.U
+        ))
+    groupArray(i).io.spWrite.bits.addr :=
+      MuxLookup(state,
+        rowPtrWriteAddr, // default
+        Array(
+          sDataMoveVal -> 0.U,
+          sDataMoveDen -> 1.U,
+          sDataMoveRow -> rowPtrWriteAddr,
+          sDataMoveCol -> 3.U
+        ))
+    groupArray(i).io.spWrite.bits.data := io.gbReadData.data
+    groupArray(i).io.spWrite.valid := (groupSel === i.U) && isDataMove
+  }
 
   // control
   switch(state) {
     is(sIdle) {
       done := false.B
+      gbAddr := rowPtrAddr
       when(start){
-        state := sDataMove
+        state := sDataMoveRow
       }
     }
-    is(sDataMove){
-      state := sWait
+    is(sDataMoveRow){
+      when(rowPtrFin){
+        when(rowPtrGroupFin){
+          gbAddr := rowPtrAddr
+          state := sDataMoveCol
+        }
+      }
+    }
+    is(sDataMoveCol){
+      when(colIdxFin){
+        when(colIdxGroupFin){
+          gbAddr := rowPtrAddr
+          state := sDataMoveCol
+        }
+      }
     }
     is(sWait){
       state := sIdle

@@ -84,20 +84,20 @@ class Core(implicit p: Parameters) extends Module {
     }
     is(sLoad){
       when(load.io.done){
-        when(ctr === 4.U){
-          state := sFinish
+        when(ctr === 3.U){
+          state := sCompute
         }.otherwise{
           state := sLoad
           ctr := ctr + 1.U
         }
       }
     }
-    // is(sCompute){
-    //   when(compute.io.done){
-    //     state := sStore
-    //     ctr := 0.U
-    //   }
-    // }
+    is(sCompute){
+      when(compute.io.done){
+        state := sFinish
+        ctr := 0.U
+      }
+    }
     // is(sStore){
     //   when(store.io.done){
     //     state := sFinish

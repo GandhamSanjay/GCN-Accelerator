@@ -24,31 +24,28 @@ class Group()(implicit p: Parameters) extends Module with ISAConstants{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
   val io = IO(new Bundle {
-    val spWrite = Vec(cp.nScratchPadMem, Flipped(Decoupled(new SPWriteCmd)))
+    val spWrite = Flipped(Decoupled(new SPWriteCmdWithSel))
   })
 
-  val spVal = Module(new Scratchpad(scratchType = "Val"))
-  val spCol = Module(new Scratchpad(scratchType = "Col"))
-  val spPtr = Module(new Scratchpad(scratchType = "Ptr"))
-  val spDen = Module(new Scratchpad(scratchType = "Den"))
+  val spVal = Module(new Scratchpad(scratchType = "Val", masked = true))
+  val spCol = Module(new Scratchpad(scratchType = "Col", masked = true))
+  val spPtr = Module(new Scratchpad(scratchType = "Ptr", masked = true))
+  val spDen = Module(new Scratchpad(scratchType = "Den", masked = true))
 
-  io.spWrite(0).bits <> spVal.io.spWrite
-  io.spWrite(0).ready := true.B
-  spVal.io.writeEn := io.spWrite(0).fire
-  io.spWrite(1).bits <> spDen.io.spWrite
-  io.spWrite(1).ready := true.B
-  spDen.io.writeEn := io.spWrite(1).fire
-  io.spWrite(2).bits <> spPtr.io.spWrite
-  io.spWrite(2).ready := true.B
-  spPtr.io.writeEn := io.spWrite(2).fire
-  io.spWrite(3).bits <> spCol.io.spWrite
-  io.spWrite(3).ready := true.B
-  spCol.io.writeEn := io.spWrite(3).fire
+  io.spWrite.bits <> spVal.io.spWrite
+  io.spWrite.ready := true.B
+  spVal.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 0.U)
+  io.spWrite.bits <> spDen.io.spWrite
+  spDen.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 1.U)
+  io.spWrite.bits <> spPtr.io.spWrite
+  spPtr.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 2.U)
+  io.spWrite.bits <> spCol.io.spWrite
+  spCol.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 3.U)
 
-  spVal.io.spReadCmd.addr := 0.U
-  spVal.io.spReadCmd.addr := 0.U
-  spVal.io.spReadCmd.addr := 0.U
-  spVal.io.spReadCmd.addr := 0.U
+  spVal.io.spReadCmd.addr := io.spWrite.bits.addr
+  spVal.io.spReadCmd.addr := io.spWrite.bits.addr
+  spVal.io.spReadCmd.addr := io.spWrite.bits.addr
+  spVal.io.spReadCmd.addr := io.spWrite.bits.addr
 
 }
 //   val writeEnVec = Wire(Vec(cp.nScratchPadMem, Bool()))
