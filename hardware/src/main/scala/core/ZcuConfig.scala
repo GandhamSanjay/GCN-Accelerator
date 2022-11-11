@@ -39,7 +39,7 @@ case class CoreParams(
   val nColInDense: Int = 8,
   val blockSize: Int = 32,
   val nPE: Int = 2,
-  val nGroups: Int = 1 
+  val nGroups: Int = 2
 ) {
   val bankBlockSize: Int = nColInDense * blockSize
   private val ScratchPadMap: HashMap[String, Int] =

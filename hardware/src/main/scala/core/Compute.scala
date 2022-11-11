@@ -29,11 +29,6 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val valid = Input(Bool())
     val done = Output(Bool())
   })
-  val gbAddr = RegInit(0.U(M_SRAM_OFFSET_BITS.W))
-  val gbInc = WireDefault(0.U(M_SRAM_OFFSET_BITS.W))
-  val gbRdata = io.gbReadData.data
-  io.gbReadCmd.addr := Mux(start, rowPtrAddr , gbAddr)
-  val nNonZeroPerGroup =  dec.io.colSize >> log2Ceil(cp.nGroups)
 
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
@@ -42,7 +37,13 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val groupArray = for(i <- 0 until cp.nGroups) yield {
     Module(new Group)
   }
+  val gbAddr = RegInit(0.U(M_SRAM_OFFSET_BITS.W))
+  val gbInc = WireDefault(0.U(M_SRAM_OFFSET_BITS.W))
+  val gbRdata = io.gbReadData.data
+  
+  val nNonZeroPerGroup =  dec.io.colSize >> log2Ceil(cp.nGroups)
 
+  val blocksPerBank = cp.bankBlockSize/cp.blockSize
   // state machine
   val sIdle :: sDataMoveRow :: sDataMoveCol :: sDataMoveVal :: sDataMoveDen :: sCompute :: sWait :: sDone :: Nil = Enum(8)
   val state = RegInit(sIdle)
@@ -69,19 +70,63 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val rowPtrGroupFin = (groupSel === (cp.nGroups - 1).U)
   when(start || (state === sDataMoveRow)){
     rowPtrInc := rowPtrInc + bankBlockSizeBytes.U
-    when(rowPtrFin){
-      groupSel := groupSel + 1.U 
-    }
   }
-  val rowPtrWriteAddr = RegNext(rowPtrAddr)
+
+
+  
   val rowPtrWriteMask = rowPtrEnd.map(!_)
   val rowPtrAddr = rowPtrBase + rowPtrInc
   val rowPtrWriteEn =  rowPtrWriteMask.reduce(_||_)
-
+  val rowPtrWriteAddr = RegNext(rowPtrAddr)
     // ColIdx Splitting
   val colIdxBase = dec.io.sramCol
-  
+  val colIdxInc = RegInit(bankBlockSizeBytes.U(32.W))
+  val colIdxAddr = colIdxBase + colIdxInc
+    when((state === sDataMoveRow) && rowPtrGroupFin || (state === sDataMoveCol)){
+    colIdxInc := colIdxInc + bankBlockSizeBytes.U
+  }
 
+  val colTransferLen = nNonZeroPerGroup
+  val colTransferLenRem = Reg(chiselTypeOf(nNonZeroPerGroup))
+  val colIdxFin = (colTransferLenRem === 0.U)
+  val colIdxGroupFin =  (groupSel === (cp.nGroups - 1).U)
+  when(state === sDataMoveRow){
+    colTransferLenRem := colTransferLen - blocksPerBank.U
+  }.elsewhen(state === sDataMoveCol){
+    when(colIdxFin){
+      colTransferLenRem := colTransferLen - blocksPerBank.U
+    }.otherwise{
+      colTransferLenRem := colTransferLenRem - blocksPerBank.U
+    }  
+  }
+
+  // Val Splitting
+  val valBase = dec.io.sramVal
+  val valInc = RegInit(bankBlockSizeBytes.U(32.W))
+  val valAddr = valBase + valInc
+  when((state === sDataMoveCol) && colIdxGroupFin || (state === sDataMoveVal)){
+    valInc := valInc + bankBlockSizeBytes.U
+  }
+  val valTransferLen = nNonZeroPerGroup
+  val valTransferLenRem = Reg(chiselTypeOf(nNonZeroPerGroup))
+  val valFin = (valTransferLenRem === 0.U)
+  val valGroupFin =  (groupSel === (cp.nGroups - 1).U)
+  when(state === sDataMoveCol){
+    valTransferLenRem := valTransferLen - blocksPerBank.U
+  }.elsewhen(state === sDataMoveVal){
+    when(valFin){
+      valTransferLenRem := valTransferLen - blocksPerBank.U
+    }.otherwise{
+      valTransferLenRem := valTransferLenRem - blocksPerBank.U
+    }  
+  }
+  
+  io.gbReadCmd.addr := Mux(start, rowPtrAddr , gbAddr)
+  when(rowPtrGroupFin || colIdxGroupFin){
+    groupSel := 0.U
+  }.elsewhen(rowPtrFin || colIdxFin){
+    groupSel := groupSel + 1.U 
+  }
   for(i <- 0 until cp.nGroups){
     groupArray(i).io.spWrite.bits.spSel :=
       MuxLookup(state,
@@ -92,7 +137,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
           sDataMoveRow -> 2.U,
           sDataMoveCol -> 3.U
         ))
-    groupArray(i).io.spWrite.bits.addr :=
+    groupArray(i).io.spWrite.bits.spWriteCmd.addr :=
       MuxLookup(state,
         rowPtrWriteAddr, // default
         Array(
@@ -101,7 +146,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
           sDataMoveRow -> rowPtrWriteAddr,
           sDataMoveCol -> 3.U
         ))
-    groupArray(i).io.spWrite.bits.data := io.gbReadData.data
+    groupArray(i).io.spWrite.bits.spWriteCmd.data := io.gbReadData.data
     groupArray(i).io.spWrite.valid := (groupSel === i.U) && isDataMove
   }
 
@@ -117,7 +162,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     is(sDataMoveRow){
       when(rowPtrFin){
         when(rowPtrGroupFin){
-          gbAddr := rowPtrAddr
+          gbAddr := colIdxAddr
           state := sDataMoveCol
         }
       }
@@ -126,7 +171,15 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
       when(colIdxFin){
         when(colIdxGroupFin){
           gbAddr := rowPtrAddr
-          state := sDataMoveCol
+          state := sDataMoveVal
+        }
+      }
+    }
+    is(sDataMoveVal){
+      when(valFin){
+        when(valGroupFin){
+          gbAddr := valAddr
+          state := sDataMoveDen
         }
       }
     }

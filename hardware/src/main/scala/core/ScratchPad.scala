@@ -23,8 +23,7 @@ import ISA._
  class SPWriteCmdWithSel(implicit p: Parameters) extends Bundle{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
-  val addr = UInt(M_SRAM_OFFSET_BITS.W)
-  val data = UInt(cp.bankBlockSize.W)
+  val spWriteCmd = new SPWriteCmd
   val spSel = UInt(cp.nScratchPadMem.W)
 }
 
@@ -59,7 +58,7 @@ class GlobalBuffer()(implicit p: Parameters)extends Module with ISAConstants{
   val nBanks = mp.dataBits/cp.bankBlockSize
   
   val io = IO(new Bundle {
-    val spWrite = Input(new SPWriteCmd)
+    val spWrite = Input(new SPWriteCmd(scratchType = "Global"))
     val spReadCmd = Input(new SPReadCmd)
     val spReadData = Output(new SPReadData)
     val writeEn = Input(Bool())
@@ -104,15 +103,16 @@ class Scratchpad(scratchType: String = "Col", masked: Boolean = false)(implicit 
 
     // Scratch size params
   val blockSize = cp.blockSize
-  val scratchSize = cp.scratchSizeMap(scratchType)/mp.dataBits
-  val nBanks = mp.dataBits/blockSize
+  val nBanks = cp.nColInDense
+  val scratchSize = cp.scratchSizeMap(scratchType)/nBanks
+  
   
   val io = IO(new Bundle {
     val spWrite = Input(new SPWriteCmd)
     val spReadCmd = Input(new SPReadCmd)
     val spReadData = Output(new SPReadData)
     val writeEn = Input(Bool())
-    val mask = if (masked) Some(Input(UInt(log2Ceil(nBanks).W))) else None
+    val mask = if (masked) Some(Input(UInt((nBanks).W))) else None
   })
 
   // Write
