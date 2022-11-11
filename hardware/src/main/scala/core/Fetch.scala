@@ -33,7 +33,7 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module with 
     val me_rd = new MEReadMaster
     val inst = new Bundle {
       val ld = Decoupled(UInt(INST_BITS.W))
-      // val co = Decoupled(UInt(INST_BITS.W))
+      val co = Decoupled(UInt(INST_BITS.W))
       // val st = Decoupled(UInt(INST_BITS.W))
     }
   })
@@ -113,7 +113,11 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module with 
       }
     }
     is(sSplit){
+<<<<<<< HEAD
       when(io.inst.ld.fire){
+=======
+      when(io.inst.ld.fire || io.inst.co.fire ){
+>>>>>>> 38d89a1 (Compute refactoring. Incomplete)
         when(packInstSelect === (mp.dataBits - INST_BITS).U){
           packInstSelect := 0.U
           state := sDrain
@@ -145,14 +149,18 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module with 
 
   // instruction queues
   io.inst.ld.valid := dec.io.isLoad & io.inst.ld.ready & state === sSplit
+<<<<<<< HEAD
   // io.inst.co.valid := dec.io.isCompute & io.inst.co.ready & state === sSplit
+=======
+  io.inst.co.valid := dec.io.isCompute & io.inst.co.ready & state === sSplit
+>>>>>>> 38d89a1 (Compute refactoring. Incomplete)
   // io.inst.st.valid := dec.io.isStore & io.inst.st.ready & state === sSplit
 
   assert(!(inst_q.io.deq.valid & state === sDrain) || dec.io.isLoad || dec.io.isCompute || dec.io.isStore,
     "-F- Fetch: Unknown instruction type")
 
   io.inst.ld.bits := (inst >> (packInstSelect))(INST_BITS - 1, 0)
-  // io.inst.co.bits := (inst >> (packInstSelect))(INST_BITS - 1, 0)
+  io.inst.co.bits := (inst >> (packInstSelect))(INST_BITS - 1, 0)
   // io.inst.st.bits := (inst >> (packInstSelect))(INST_BITS - 1, 0)
 
   // check if selected queue is ready
@@ -161,9 +169,9 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module with 
     MuxLookup(deq_sel,
       false.B, // default
       Array(
-        "h_01".U -> io.inst.ld.ready
+        "h_01".U -> io.inst.ld.ready,
         // "h_02".U -> io.inst.st.ready,
-        // "h_04".U -> io.inst.co.ready
+        "h_04".U -> io.inst.co.ready
       ))
 
   // dequeue instruction

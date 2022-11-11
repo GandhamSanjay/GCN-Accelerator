@@ -50,12 +50,14 @@ class SpMMDecode extends Bundle {
   val C_YSIZE_BITS = 7
   val OP_BITS = 2
 
-  val empty = UInt(60.W)
-  val y_size = UInt(C_YSIZE_BITS.W)
-  val x_size = UInt(C_XSIZE_BITS.W)
+  val empty = UInt(37.W)
+  val row_size = UInt(C_YSIZE_BITS.W)
+  val col_size = UInt(C_YSIZE_BITS.W)
+  val den_size = UInt(C_XSIZE_BITS.W)
+  val sram_offset_val = UInt(C_SRAM_OFFSET_BITS.W)
   val sram_offset_den = UInt(C_SRAM_OFFSET_BITS.W)
   val sram_offset_ptr = UInt(C_SRAM_OFFSET_BITS.W)
-  val sram_offset_col_val = UInt(C_SRAM_OFFSET_BITS.W)
+  val sram_offset_col = UInt(C_SRAM_OFFSET_BITS.W)
   val push_next = UInt(1.W)
   val push_prev = UInt(1.W)
   val pop_next = UInt(1.W)
@@ -175,18 +177,22 @@ class LoadDecode extends Module with ISAConstants{
 class ComputeDecode extends Module with ISAConstants{
   val io = IO(new Bundle {
     val inst = Input(UInt(INST_BITS.W))
-    val sramColVal = Output(UInt(C_SRAM_OFFSET_BITS.W))
+    val sramVal = Output(UInt(C_SRAM_OFFSET_BITS.W))
+    val sramCol = Output(UInt(C_SRAM_OFFSET_BITS.W))
     val sramPtr = Output(UInt(C_SRAM_OFFSET_BITS.W))
     val sramDen = Output(UInt(C_SRAM_OFFSET_BITS.W))
-    val xSizeDen = Output(UInt(C_XSIZE_BITS.W))
-    val ySizeSp = Output(UInt(C_YSIZE_BITS.W))
+    val denSize = Output(UInt(C_XSIZE_BITS.W))
+    val colSize = Output(UInt(C_YSIZE_BITS.W))
+    val rowSize = Output(UInt(C_YSIZE_BITS.W))
   })
   val dec = io.inst.asTypeOf(new SpMMDecode)
-  io.sramColVal := dec.sram_offset_col_val
+  io.sramVal := dec.sram_offset_val
+  io.sramCol := dec.sram_offset_col
   io.sramPtr := dec.sram_offset_ptr
   io.sramDen := dec.sram_offset_den
-  io.xSizeDen := dec.x_size
-  io.ySizeSp := dec.y_size
+  io.denSize := dec.den_size
+  io.colSize := dec.col_size
+  io.rowSize := dec.row_size
 }
 
 // /** StoreDecode.

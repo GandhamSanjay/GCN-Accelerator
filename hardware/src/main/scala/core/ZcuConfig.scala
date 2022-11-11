@@ -19,8 +19,9 @@ case class CRParams(
 ) {
   val nPEEventCtr: Int = 6
   val nComputeEventCtr: Int = (CoreParams().nPE*nPEEventCtr) + 1 // 1 register for total compute time
-  // val nEventCtr: Int = nComputeEventCtr + 2 // performance counters ((D1,D2, MAC, Total_PE)*nPE + compute) + load + store  
+  // // val nEventCtr: Int = nComputeEventCtr + 2 // performance counters ((D1,D2, MAC, Total_PE)*nPE + compute) + load + store  
   val nEventCtr: Int = 1
+  val nEventCtr: Int = 1 // performance counters ((D1,D2, MAC, Total_PE)*nPE + compute) + load + store 
   val nSlaveReg: Int = nEventCtr + nMmapReg + 3// additional reg to launch the accelerator, indicate the end of execution and total time
   require(nMmapReg < nSlaveReg, "memory mapped registers should be atleast 1 less than slave register")
 }
@@ -36,13 +37,12 @@ case class CoreParams(
   val scratchValSize: Int = 1024*8*1024,
   val scratchPtrSize: Int = 1024*8*1024,
   val globalBufferSize: Int = 1024*8*1024,
+  val nColInDense: Int = 8,
   val blockSize: Int = 32,
-  // val scratchBankBlockSize: Int = 256,
   val nPE: Int = 2,
-  val nBanks: Int = 1
+  val nGroups: Int = 1 
 ) {
-  require(loadInstQueueEntries > 0, "instQueueEntries must be atleast 1")
-  require(loadDataQueueEntries > 0, "dataQueueEntries must be atleast 1")
+  val bankBlockSize: Int = nColInDense * blockSize
   private val ScratchPadMap: HashMap[String, Int] =
     HashMap(("CSR", 5), ("None", 2))
   var scratchSizeMap: HashMap[String, Int] = HashMap(("None", 0))

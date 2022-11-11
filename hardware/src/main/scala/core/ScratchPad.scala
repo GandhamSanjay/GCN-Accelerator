@@ -37,7 +37,7 @@ class SPReadCmd(implicit p: Parameters) extends Bundle{
 class SPReadData(val scratchType: String = "Col")(implicit p: Parameters) extends Bundle{
   val cp = p(AccKey).coreParams
   val mp = p(AccKey).memParams
-  val data = if(scratchType == "Out"){UInt(mp.dataBits.W)}else{UInt(cp.blockSize.W)}
+  val data = if(scratchType == "Out"){UInt(mp.dataBits.W)}else{UInt(cp.bankBlockSize.W)}
 }
 
 // Masked Writes 512 bits and reads 512 bits at a time.
@@ -46,9 +46,9 @@ class GlobalBuffer()(implicit p: Parameters)extends Module with ISAConstants{
   val cp = p(AccKey).coreParams
 
     // Scratch size params
-  val blockSize = cp.blockSize
+  val bankBlockSize = cp.bankBlockSize
   val scratchSize = cp.globalBufferSize/mp.dataBits
-  val nBanks = mp.dataBits/blockSize
+  val nBanks = mp.dataBits/cp.bankBlockSize
   
   val io = IO(new Bundle {
     val spWrite = Input(new SPWriteCmd)
@@ -63,26 +63,28 @@ class GlobalBuffer()(implicit p: Parameters)extends Module with ISAConstants{
 
   // Read
   val raddr = WireDefault(io.spReadCmd.addr)
-  val rdata = Wire(Vec(nBanks, UInt(blockSize.W)))
+  val rdata = Wire(Vec(nBanks, UInt(bankBlockSize.W)))
   val bankSelPrev = RegInit(0.U(log2Ceil(nBanks).W))
 
   val ram = Seq.fill(nBanks){
-    SyncReadMem(scratchSize, UInt(blockSize.W))
+    SyncReadMem(scratchSize, UInt(bankBlockSize.W))
   }
 
   when(io.writeEn){
     val writeIdx = waddr >> log2Ceil(mp.dataBits/8)
     for (i <- 0 until (nBanks)){
-      ram(i).write(writeIdx, wdata((i+1)*blockSize - 1, i*blockSize))
+      ram(i).write(writeIdx, wdata((i+1)*bankBlockSize - 1, i*bankBlockSize))
     }
   }
 
-  val bankIdx =  raddr >> log2Ceil(mp.dataBits/8)
+  val raddrByteAlign =  (raddr >> log2Ceil(bankBlockSize/8))
+  val bankSel = (raddrByteAlign)(log2Ceil(nBanks) - 1, 0)
+  val bankIdx = (raddrByteAlign) >> (log2Ceil(nBanks))
+  bankSelPrev := bankSel
   for (i <- 0 until (nBanks)){
     rdata(i) := ram(i).read(bankIdx, true.B)
   }
-  io.spReadData.data := rdata.reduce(Cat(_,_))
-  assert(rdata(0) =/= 19.U)
+  io.spReadData.data := MuxTree(bankSelPrev, rdata)
 }
 
 // Writes 512 bits and reads 32 bits at a time 

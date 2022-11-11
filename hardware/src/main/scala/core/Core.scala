@@ -23,7 +23,7 @@ class Core(implicit p: Parameters) extends Module {
   val fetch = Module(new Fetch)
   val load = Module(new Load)
   val globalBuffer = Module(new GlobalBuffer())
-  // val compute = Module(new Compute)
+  val compute = Module(new Compute)
   // val store = Module(new Store)
   // val spOut = Module(new OutputScratchpad(scratchType = "Out"))
   val start = Wire(Bool())
@@ -31,7 +31,9 @@ class Core(implicit p: Parameters) extends Module {
   globalBuffer.io.spWrite <> load.io.spWrite.bits
   load.io.spWrite.ready := true.B
   globalBuffer.io.writeEn := load.io.spWrite.fire
-  globalBuffer.io.spReadCmd.addr := 0.U
+  globalBuffer.io.spReadCmd <> compute.io.gbReadCmd
+  globalBuffer.io.spReadData <> compute.io.gbReadData
+
   io.cr.ecnt(0) := 0.U
   // io.cr.ecnt(0) <> load.io.ecnt
   // io.cr.ecnt(1) <> compute.io.ecnt(0)
@@ -47,7 +49,7 @@ class Core(implicit p: Parameters) extends Module {
   val sIdle :: sLoad :: sCompute :: sStore :: sFinish :: Nil = Enum(5)
   val state = RegInit(sIdle)
   val ctr = RegInit(0.U(4.W))
-  // compute.io.valid := (state === sCompute) && !compute.io.done
+  compute.io.valid := (state === sCompute) && !compute.io.done
   load.io.valid := (state === sLoad) && !load.io.done
   // store.io.valid := (state === sStore) && !store.io.done
 
@@ -58,7 +60,7 @@ class Core(implicit p: Parameters) extends Module {
 
   // Load inputs and weights from memory (DRAM) into scratchpads (SRAMs)
   load.io.inst <> fetch.io.inst.ld
-  // compute.io.inst <> fetch.io.inst.co
+  compute.io.inst <> fetch.io.inst.co
   // store.io.inst <> fetch.io.inst.st
 
   // Read(rd) and write(wr) from/to memory (i.e. DRAM)
@@ -105,5 +107,6 @@ class Core(implicit p: Parameters) extends Module {
         state := sIdle
     }
   }
+  load.io.spWrite.ready := true.B
 
 }
