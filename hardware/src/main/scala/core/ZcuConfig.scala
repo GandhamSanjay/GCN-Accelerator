@@ -21,7 +21,6 @@ case class CRParams(
   val nComputeEventCtr: Int = (CoreParams().nPE*nPEEventCtr) + 1 // 1 register for total compute time
   // // val nEventCtr: Int = nComputeEventCtr + 2 // performance counters ((D1,D2, MAC, Total_PE)*nPE + compute) + load + store  
   val nEventCtr: Int = 1
-  val nEventCtr: Int = 1 // performance counters ((D1,D2, MAC, Total_PE)*nPE + compute) + load + store 
   val nSlaveReg: Int = nEventCtr + nMmapReg + 3// additional reg to launch the accelerator, indicate the end of execution and total time
   require(nMmapReg < nSlaveReg, "memory mapped registers should be atleast 1 less than slave register")
 }
