@@ -40,7 +40,23 @@ class data:
 
 np.random.seed(0)
 dataGen = data()
-((val,col,row), I, den, O) = dataGen.randSP(spDim = (8,8), denDim = (8,4))
+I = np.array([[0, 11, 0, 0],
+            [22, 0, 0, 33],
+            [0, 0, 0, 0],
+            [0, 44, 0, 0]])
+W = np.array([[2, 2],
+            [1, 3],
+            [3, 1],
+            [1, 2]])
+O = np.matmul(I,W)
+val = np.array([11,22,33,44])
+col = np.array([1,0,3,1])
+row = np.array([0,1,3,3,4])
+den = np.array([[2, 2],
+            [1, 3],
+            [3, 1],
+            [1, 2]])
+# ((val,col,row), I, den, O) = dataGen.randSP(spDim = (8,8), denDim = (8,4))
 psum = np.zeros(O.shape, dtype =int)
 rowBin = dataGen.arrayToBinary(row)
 colBin = dataGen.arrayToBinary(col)
@@ -60,10 +76,13 @@ instr = ''
 instr = instr + instGen.load(xsize = row.size, id = 'row', dram_offset = rowAddr, sram_offset = rowAddr)
 instr = instr + instGen.load(xsize = col.size, id = 'col', dram_offset = colAddr, sram_offset = colAddr)
 instr = instr + instGen.load(xsize = val.size, id = 'val', dram_offset = valAddr, sram_offset = valAddr)
-# instr = instr + instGen.load(xsize = den.size, id = 'den', dram_offset = denAddr, sram_offset = 0)
+instr = instr + instGen.load(xsize = den.size, id = 'den', dram_offset = denAddr, sram_offset = denAddr)
 # instr = instr + instGen.load(xsize = psum.size, id = 'psum', dram_offset = psumAddr, sram_offset = 0)
 instr = instr + instGen.spMM(sram_offset_col = colAddr, sram_offset_ptr = rowAddr, sram_offset_den = denAddr, sram_offset_val = valAddr, den_size = den.size, col_size = col.size, row_size = row.size)
-instr = instr + instGen.store(xsize = O.size, dram_offset = outAddr)
+instr = instr + instGen.load(xsize = 0, id = 'row', dram_offset = rowAddr, sram_offset = rowAddr)
+instr = instr + instGen.load(xsize = 0, id = 'row', dram_offset = rowAddr, sram_offset = rowAddr)
+instr = instr + instGen.load(xsize = 0, id = 'row', dram_offset = rowAddr, sram_offset = rowAddr)
+# instr = instr + instGen.store(xsize = O.size, dram_offset = outAddr)
 instCount = len(instr)/128
 while(instCount%4 != 0):
     instr = instr + '0'*128

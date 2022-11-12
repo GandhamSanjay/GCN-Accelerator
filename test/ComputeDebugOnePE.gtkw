@@ -1,79 +1,31 @@
 [*]
 [*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
-[*] Thu Oct 27 18:22:25 2022
+[*] Sat Nov 12 21:50:41 2022
 [*]
 [dumpfile] "/home/sanjay/research/GCN-Accelerator/test/Wrapper.vcd"
-[dumpfile_mtime] "Thu Oct 27 17:50:00 2022"
-[dumpfile_size] 1554552
+[dumpfile_mtime] "Sat Nov 12 21:50:34 2022"
+[dumpfile_size] 212590
 [savefile] "/home/sanjay/research/GCN-Accelerator/test/ComputeDebugOnePE.gtkw"
-[timestart] 149300
+[timestart] 173660
 [size] 1920 1043
-[pos] 1759 -116
-*-15.000000 212000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[pos] -51 -51
+*-14.000000 213470 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] Wrapper.
 [treeopen] Wrapper.core.
 [treeopen] Wrapper.core.compute.
-[treeopen] Wrapper.core.compute.peArray_0.
-[sst_width] 233
-[signals_width] 598
+[sst_width] 321
+[signals_width] 545
 [sst_expanded] 1
-[sst_vpaned_height] 616
-@28
-Wrapper.core.compute.assignStart
-Wrapper.core.compute.clock
+[sst_vpaned_height] 298
 @22
-Wrapper.core.compute.currRow[31:0]
-Wrapper.core.compute.dec_io_inst[127:0]
-Wrapper.core.compute.dec_io_sramColVal[15:0]
-Wrapper.core.compute.dec_io_sramDen[15:0]
-Wrapper.core.compute.dec_io_sramPtr[15:0]
-Wrapper.core.compute.dec_io_xSizeDen[6:0]
-Wrapper.core.compute.dec_io_ySizeSp[6:0]
-Wrapper.core.compute.done[31:0]
-Wrapper.core.compute.inst[127:0]
+Wrapper.core.compute.groupArray_0.spDen_io_spWrite_addr[31:0]
+Wrapper.core.compute.groupArray_0.spDen_io_spWrite_data[63:0]
 @28
-Wrapper.core.compute.inst_q_clock
+Wrapper.core.compute.groupArray_0.spDen_io_writeEn
+Wrapper.core.compute.groupArray_0.spDen_io_mask[1:0]
 @22
-Wrapper.core.compute.inst_q_io_deq_bits[127:0]
-@28
-Wrapper.core.compute.inst_q_io_deq_ready
-Wrapper.core.compute.inst_q_io_deq_valid
-@22
-Wrapper.core.compute.inst_q_io_enq_bits[127:0]
-@28
-Wrapper.core.compute.inst_q_io_enq_ready
-Wrapper.core.compute.inst_q_io_enq_valid
-Wrapper.core.compute.inst_q_reset
-Wrapper.core.compute.io_done
-@22
-Wrapper.core.compute.io_inst_bits[127:0]
-@28
-Wrapper.core.compute.io_inst_ready
-@29
-Wrapper.core.compute.io_inst_valid
-@28
-Wrapper.core.compute.io_valid
-Wrapper.core.compute.peAllFree
-Wrapper.core.compute.peArray_0_clock
-@22
-Wrapper.core.compute.peArray_0_io_peReq_bits_denXSize[6:0]
-Wrapper.core.compute.peArray_0_io_peReq_bits_rowIdx[6:0]
-Wrapper.core.compute.peArray_0_io_peReq_bits_sramColVal[15:0]
-Wrapper.core.compute.peArray_0_io_peReq_bits_sramDen[15:0]
-Wrapper.core.compute.peArray_0_io_peReq_bits_sramPtr[15:0]
-@28
-Wrapper.core.compute.peArray_0_io_peReq_ready
-Wrapper.core.compute.peArray_0_io_peReq_valid
-@22
-Wrapper.core.compute.peArray_0_io_spWrite_0_bits_addr[15:0]
-Wrapper.core.compute.peArray_0_io_spWrite_0_bits_data[511:0]
-@28
-Wrapper.core.compute.peArray_0_reset
-Wrapper.core.compute.reset
-@22
-Wrapper.core.compute.rowRem[31:0]
-@28
-Wrapper.core.compute.start
-Wrapper.core.compute.state[1:0]
+Wrapper.core.compute.io_gbReadCmd_addr[31:0]
+@23
+Wrapper.core.compute.io_gbReadData_data[63:0]
 [pattern_trace] 1
 [pattern_trace] 0

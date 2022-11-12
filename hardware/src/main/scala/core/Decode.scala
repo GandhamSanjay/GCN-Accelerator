@@ -17,25 +17,12 @@ import  ISA._
  *   - SOUT
  */
 class MemDecode extends Bundle{
-
-  val M_DEP_BITS = 4
-  val M_ID_BITS = 3
-  val M_DRAM_OFFSET_BITS = 32
-  val M_SRAM_OFFSET_BITS = 16
-  val M_XSIZE_BITS = 7
-  val M_YSIZE_BITS = 0
-  val OP_BITS = 2
-
-  val empty = UInt(64.W)
+  val empty = UInt(159.W)
   val ysize = UInt(M_YSIZE_BITS.W)
   val xsize = UInt(M_XSIZE_BITS.W)
   val sram_offset = UInt(M_DRAM_OFFSET_BITS.W)
   val dram_offset = UInt(M_SRAM_OFFSET_BITS.W)
   val id = UInt(M_ID_BITS.W)
-  val push_next = UInt(1.W)
-  val push_prev = UInt(1.W)
-  val pop_next = UInt(1.W)
-  val pop_prev = UInt(1.W)
   val op = UInt(OP_BITS.W)
 }
 
@@ -45,12 +32,8 @@ class MemDecode extends Bundle{
  * therefore order matters when declaring fields.
  */
 class SpMMDecode extends Bundle {
-  val C_SRAM_OFFSET_BITS = 16
-  val C_XSIZE_BITS = 7
-  val C_YSIZE_BITS = 7
-  val OP_BITS = 2
 
-  val empty = UInt(37.W)
+  val empty = UInt(42.W)
   val row_size = UInt(C_YSIZE_BITS.W)
   val col_size = UInt(C_YSIZE_BITS.W)
   val den_size = UInt(C_XSIZE_BITS.W)
@@ -58,10 +41,6 @@ class SpMMDecode extends Bundle {
   val sram_offset_den = UInt(C_SRAM_OFFSET_BITS.W)
   val sram_offset_ptr = UInt(C_SRAM_OFFSET_BITS.W)
   val sram_offset_col = UInt(C_SRAM_OFFSET_BITS.W)
-  val push_next = UInt(1.W)
-  val push_prev = UInt(1.W)
-  val pop_next = UInt(1.W)
-  val pop_prev = UInt(1.W)
   val op = UInt(OP_BITS.W)
 }
 
@@ -146,8 +125,6 @@ class FetchDecode extends Module with ISAConstants{
 class LoadDecode extends Module with ISAConstants{
   val io = IO(new Bundle {
     val inst = Input(UInt(INST_BITS.W))
-    // val push_next = Output(Bool())
-    // val pop_next = Output(Bool())
     val isSeq = Output(Bool())
     val isVal = Output(Bool())
     val isCol = Output(Bool())

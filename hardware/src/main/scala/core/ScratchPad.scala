@@ -152,6 +152,8 @@ class Scratchpad(scratchType: String = "Col", masked: Boolean = false)(implicit 
     rdata(i) := ram(i).read(bankIdx, (bankSel === i.U))
   }
   io.spReadData.data := MuxTree(bankSelPrev, rdata)
+
+  assert(rdata(0) =/= 19.U)
 }
 
 // Reads 512 bits and write 32 bits at a time 

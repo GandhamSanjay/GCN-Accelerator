@@ -9,21 +9,18 @@ import scala.collection.mutable.HashMap
  * These constants are used for decoding (parsing) fields on instructions.
  */
 trait ISAConstants {
-  val INST_BITS = 128
+  val INST_BITS = 256
 
   val OP_BITS = 2
 
-  val M_DEP_BITS = 4
   val M_ID_BITS = 3
   val M_DRAM_OFFSET_BITS = 32
-  val M_SRAM_OFFSET_BITS = 16
-  val M_XSIZE_BITS = 7
+  val M_SRAM_OFFSET_BITS = 32
+  val M_XSIZE_BITS = 32
   val M_YSIZE_BITS = 0
-
-  val C_DEP_BITS = 4
-  val C_SRAM_OFFSET_BITS = 16
-  val C_XSIZE_BITS = 7
-  val C_YSIZE_BITS = 7
+  val C_SRAM_OFFSET_BITS = 32
+  val C_XSIZE_BITS = 32
+  val C_YSIZE_BITS = 32
 
   val Y = true.B
   val N = false.B
@@ -41,18 +38,16 @@ trait ISAConstants {
  * TODO: Modify load/store/alu/gemm
  */
 object ISA {
-  val INST_BITS = 128
+  val INST_BITS = 256
   val OP_BITS = 2
-  val M_DEP_BITS = 4
   val M_ID_BITS = 3
   val M_DRAM_OFFSET_BITS = 32
-  val M_SRAM_OFFSET_BITS = 16
-  val M_XSIZE_BITS = 7
+  val M_SRAM_OFFSET_BITS = 32
+  val M_XSIZE_BITS = 32
   val M_YSIZE_BITS = 0
-  val C_DEP_BITS = 4
-  val C_SRAM_OFFSET_BITS = 16
-  val C_XSIZE_BITS = 7
-  val C_YSIZE_BITS = 7
+  val C_SRAM_OFFSET_BITS = 32
+  val C_XSIZE_BITS = 32
+  val C_YSIZE_BITS = 32
   val Y = true.B
   val N = false.B
   val OP_L = 0.asUInt(OP_BITS.W)
@@ -60,8 +55,7 @@ object ISA {
   val OP_C = 2.asUInt(OP_BITS.W)
   val OP_X = 3.asUInt(OP_BITS.W)
 
-  private val xLen = 128
-  private val depBits = 4
+  private val xLen = 256
 
   private val idBits: HashMap[String, Int] =
     HashMap(("task", 2), ("mem", 2))
@@ -80,14 +74,14 @@ object ISA {
   private def instPat(bin: String): BitPat = BitPat("b" + bin)
 
   private def load(id: String): BitPat = {
-    val rem = xLen - idBits("mem") - depBits - idBits("task")
-    val inst = dontCare(rem) + memId(id) + dontCare(depBits) + taskId("load")
+    val rem = xLen - idBits("mem") - idBits("task")
+    val inst = dontCare(rem) + memId(id) + taskId("load")
     instPat(inst)
   }
 
   private def store(id: String): BitPat = {
-    val rem = xLen - idBits("mem") - depBits - idBits("task")
-    val inst = dontCare(rem) + memId(id) + dontCare(depBits) + taskId("store")
+    val rem = xLen - idBits("mem") - idBits("task")
+    val inst = dontCare(rem) + memId(id) + taskId("store")
     instPat(inst)
   }
 

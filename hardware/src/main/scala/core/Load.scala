@@ -21,13 +21,13 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
     val me_rd = new MEReadMaster
     val valid = Input(Bool())
     val done = Output(Bool())
-    val spWrite = Decoupled(new SPWriteCmd)
+    val spWrite = Decoupled(new SPWriteCmd(scratchType = "Global"))
     val ecnt = Output(UInt(regBits.W))
   })
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.loadInstQueueEntries))
   val data_qEntries = (1 << mp.lenBits)
-  val data_q = Module(new Queue(new SPWriteCmd, data_qEntries))
+  val data_q = Module(new Queue(new SPWriteCmd(scratchType = "Global"), data_qEntries))
   val dec = Module(new LoadDecode)
   val loadTime = RegInit(0.U(regBits.W))
   
