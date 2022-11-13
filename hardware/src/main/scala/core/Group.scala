@@ -29,10 +29,12 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     val spWrite = Flipped(Decoupled(new SPWriteCmdWithSel))
     val mask = Input(UInt((nBanks).W))
     val nNonZero = Flipped(ValidIO(UInt(32.W)))
-    val vrEntry = Decoupled(new VRTableEntry)
+    // val vrEntry = Decoupled(new VRTableEntry)
     // val start = Input(Bool())
   })
+  
   val rowPtrSize = RegEnable(io.nRowPtrInGroup.bits, io.nRowPtrInGroup.valid)
+  assert(rowPtrSize =/= 19.U)
   val nNonZero = RegEnable(io.nNonZero.bits, io.nNonZero.valid)
   val rowPtrBegin = RegInit(0.U(cp.blockSize.W))
   val rowPtrEnd = RegInit(0.U(cp.blockSize.W))
@@ -42,12 +44,12 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   }
   val isVRwithPrevGroup_q = Reg(Bool())
   val numRows_q = Reg(UInt(cp.blockSize.W))
-  val decompressDone = Wire(Bool())
-  val vrQueue = Module(new Queue(new VRTableEntryWithGroup, 1)) 
-  vrQueue.io.enq.valid := decompressDone
-  vrQueue.io.enq.bits.VRTableEntry.isVRWithPrevGroup := isVRwithPrevGroup_q
-  vrQueue.io.enq.bits.VRTableEntry.nRows := numRows_q
-  vrQueue.io.enq.bits.group := groupID.U
+  // val decompressDone = Wire(Bool())
+  // val vrQueue = Module(new Queue(new VRTableEntryWithGroup, 1)) 
+  // vrQueue.io.enq.valid := decompressDone
+  // vrQueue.io.enq.bits.VRTableEntry.isVRWithPrevGroup := isVRwithPrevGroup_q
+  // vrQueue.io.enq.bits.VRTableEntry.nRows := numRows_q
+  // vrQueue.io.enq.bits.group := groupID.U
   
   // ScratchPads
   val spVal = Module(new Scratchpad(scratchType = "Val", masked = true))

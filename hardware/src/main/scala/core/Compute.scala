@@ -46,11 +46,11 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     Module(new Group(groupID = i))
   }
 
-val vrArbiter = Module(new Arbiter(new VRTableEntryWithGroup, cp.nGroups))
-vrArbiter.io.out.ready := true.B
-when(vrArbiter.io.out.valid){
-  vRTable.write(vrArbiter.io.out.bits.group,vrArbiter.io.out.bits.VRTableEntry)
-}
+// val vrArbiter = Module(new Arbiter(new VRTableEntryWithGroup, cp.nGroups))
+// vrArbiter.io.out.ready := true.B
+// when(vrArbiter.io.out.valid){
+  // vRTable.write(vrArbiter.io.out.bits.group,vrArbiter.io.out.bits.VRTableEntry)
+// }
 
 
 // state machine
@@ -62,52 +62,37 @@ when(vrArbiter.io.out.valid){
   inst_q.io.enq <> io.inst
   inst_q.io.deq.ready := (state === sIdle) && io.valid
 
-// RowPtrSplitting
+
   val groupSel = RegInit(0.U(cp.nGroups.W))
   val groupEnd = groupSel === (cp.nGroups - 1).U
   val nNonZeroPerGroup =  dec.io.colSize >> log2Ceil(cp.nGroups)
   val gbAddr = RegInit(0.U(C_SRAM_OFFSET_BITS.W))
   val gbRdata = io.gbReadData.data
+
+  // Row Splitting
+  val rowPtrFin = Wire(Bool())
   val rowPtrDataBlock = for(i <- 0 until (cp.bankBlockSize/cp.blockSize))yield{
     gbRdata((((i+1)*cp.blockSize) -1), i*cp.blockSize)
   }
-
-  val rowPtrEnd = rowPtrDataBlock.map(_ >= ((groupSel+1.U) << Log2(nNonZeroPerGroup)))
-  val rowPtrFin = rowPtrEnd.reduce(_||_)
-  val rowPtrDataPrev = for(i <- 0 until (cp.bankBlockSize/cp.blockSize))yield{
-    RegEnable(rowPtrDataBlock(i), rowPtrFin)
-  }
-  val rowPtrEndPrev = rowPtrDataPrev.map(_ >= ((groupSel+1.U) << Log2(nNonZeroPerGroup)))
-  val rowPtrFinPrev = rowPtrEndPrev.reduce(_||_)
-  val rowPtrPrevWriteMask = rowPtrEndPrev.map(!_).map(_.asUInt)
-  val rowPtrPrevWriteEn =  rowPtrPrevWriteMask.reduce(_.asBool||_.asBool)
-
-  val rowPtrAddr = RegInit(bankBlockSizeBytes.U(32.W))
-  val rowPtrGroupFin = (groupSel === (cp.nGroups - 1).U)
-  val rowPtrReadAddr = Mux(start, dec.io.sramPtr, rowPtrAddr) 
-  val rowPtrWriteMask = rowPtrEnd.map(!_).map(_.asUInt)
-  val rowPtrWriteEn =  rowPtrWriteMask.reduce(_.asBool||_.asBool)
+  val rowPtrAddr = RegInit(0.U(32.W))
+  val rowPtrIdxInBlock = rowPtrAddr(log2Ceil(bankBlockSizeBytes)-1,log2Ceil(cp.blockSize/8))
+  val rowPtrData = MuxTree(rowPtrIdxInBlock, rowPtrDataBlock)
+  val rowPtrReadAddr = Mux(start, dec.io.sramPtr, Mux(rowPtrFin, rowPtrAddr, rowPtrAddr + (cp.blockSize/8).U)) 
+  rowPtrFin := rowPtrData >= ((groupSel + 1.U) << Log2(nNonZeroPerGroup))
   val rowPtrWriteAddr = RegInit(0.U(C_SRAM_OFFSET_BITS.W))
-  val nRowWritten = Wire(UInt(32.W))
-  val nRowWritten_q = Wire(UInt(32.W))
-  val nRowWrittenValid = Wire(Bool())
-  nRowWritten := Mux(state === sDataMoveRow,nRowWritten_q + PopCount(rowPtrEnd), nRowWritten_q + PopCount(rowPtrEndPrev))
-
-
-  when((state === sDataMoveRow)){
+  when(state === sDataMoveRow){
     when(rowPtrFin){
       rowPtrWriteAddr := 0.U
     }.otherwise{
-      rowPtrWriteAddr := rowPtrWriteAddr + bankBlockSizeBytes.U
-    }
-  }.elsewhen(state === sDataMoveRowGroup){
-    when(rowPtrFinPrev){
-      rowPtrWriteAddr := 0.U
-    }.otherwise{
-      rowPtrWriteAddr := rowPtrWriteAddr + bankBlockSizeBytes.U
+      rowPtrWriteAddr := rowPtrWriteAddr + (cp.blockSize/8).U
     }
   }
-
+  val rowPtrWriteMask = UIntToOH(rowPtrIdxInBlock)
+  val rowPtrWriteEn = !rowPtrFin
+  val nRowWritten_q = RegInit(0.U(32.W))
+  val nRowWritten =  nRowWritten_q + !rowPtrFin
+  val nRowWrittenValid = Wire(Bool())
+  
   // Col Splitting
   val colReadAddr = RegInit(0.U(32.W))
   val colWriteAddr = RegInit(0.U(32.W))
@@ -148,11 +133,11 @@ when(vrArbiter.io.out.valid){
   when(state === sDataMoveDen){
     denReadBlockNum := denReadBlockNum + cp.nColInDense.U
   }
-  when((state === sDataMoveVal)){
-    when(valFin){
-      valWriteAddr := 0.U
+  when((state === sDataMoveDen)){
+    when(denFin){
+      denWriteAddr := 0.U
     }.otherwise{
-      valWriteAddr := valWriteAddr + bankBlockSizeBytes.U
+      denWriteAddr := denWriteAddr + bankBlockSizeBytes.U
     }
   }
 
@@ -160,10 +145,10 @@ when(vrArbiter.io.out.valid){
   for(i <- 0 until cp.nGroups){
     groupArray(i).io.nRowPtrInGroup.bits := nRowWritten
     groupArray(i).io.nRowPtrInGroup.valid := (nRowWrittenValid && groupSel === i.U)
-    vrArbiter.io.in(i).bits.VRTableEntry := groupArray(i).io.vrEntry.bits
-    vrArbiter.io.in(i).bits.group := i.U
-    vrArbiter.io.in(i).valid := groupArray(i).io.vrEntry.valid
-    vrArbiter.io.in(i).ready <> groupArray(i).io.vrEntry.ready
+    // vrArbiter.io.in(i).bits.VRTableEntry := groupArray(i).io.vrEntry.bits
+    // vrArbiter.io.in(i).bits.group := i.U
+    // vrArbiter.io.in(i).valid := groupArray(i).io.vrEntry.valid
+    // vrArbiter.io.in(i).ready <> groupArray(i).io.vrEntry.ready
     groupArray(i).io.nNonZero.bits := nNonZeroPerGroup
     groupArray(i).io.nNonZero.valid := start
     groupArray(i).io.spWrite.bits.spSel :=     
@@ -190,7 +175,6 @@ when(vrArbiter.io.out.valid){
       MuxLookup(state,
       0.U, // default
       Array(
-        sDataMoveRowGroup -> rowPtrDataPrev.reverse.reduce(Cat(_,_)),
         sDataMoveRow -> rowPtrDataBlock.reverse.reduce(Cat(_,_)),
         sDataMoveCol -> io.gbReadData.data,
         sDataMoveVal -> io.gbReadData.data,
@@ -200,17 +184,16 @@ when(vrArbiter.io.out.valid){
       MuxLookup(state,
       0.U, // default
       Array(
-        sDataMoveRowGroup -> rowPtrPrevWriteEn,
         sDataMoveRow -> rowPtrWriteEn,
         sDataMoveCol -> true.B,
-        sDataMoveVal -> true.B
+        sDataMoveVal -> true.B,
+        sDataMoveDen -> true.B
       )).asBool  && (groupSel === i.U))
     groupArray(i).io.mask:= 
       MuxLookup(state,
       0.U, // default
       Array(
-        sDataMoveRowGroup -> rowPtrPrevWriteMask.reverse.reduce(Cat(_,_)),
-        sDataMoveRow -> rowPtrWriteMask.reverse.reduce(Cat(_,_)),
+        sDataMoveRow -> rowPtrWriteMask,
         sDataMoveCol -> ((cp.nColInDense.U << 1.U) - 1.U),
         sDataMoveVal -> ((cp.nColInDense.U << 1.U) - 1.U),
         sDataMoveDen -> ((cp.nColInDense.U << 1.U) - 1.U)
@@ -218,7 +201,7 @@ when(vrArbiter.io.out.valid){
   }
 
 // group select
-  when(((state === sDataMoveRow) && rowPtrFin)||((state === sDataMoveRowGroup) && rowPtrFinPrev)||((state === sDataMoveCol) && colFin)||((state === sDataMoveVal) && valFin)){
+  when((((state === sDataMoveRow) && rowPtrFin)||(state === sDataMoveCol) && colFin)||((state === sDataMoveVal) && valFin)){
     when(groupEnd){
       groupSel := 0.U
       nRowWritten_q := 0.U
@@ -226,19 +209,17 @@ when(vrArbiter.io.out.valid){
       groupSel := groupSel + 1.U
       nRowWritten_q := 0.U
     }
-  }.otherwise{
+  }.elsewhen((state === sDataMoveRow)){
     nRowWritten_q := nRowWritten
   }
-  nRowWrittenValid := ((state === sDataMoveRow) && rowPtrFin)||((state === sDataMoveRowGroup) && rowPtrFinPrev)
+  nRowWrittenValid := ((state === sDataMoveRow) && rowPtrFin)
   
   io.gbReadCmd.addr := MuxLookup(true.B,
       rowPtrReadAddr, // default
       Array(
         ((state === sIdle) && start)-> rowPtrReadAddr,
         ((state === sDataMoveRow) && (!(rowPtrFin && groupEnd))) -> rowPtrReadAddr,
-        ((state === sDataMoveRowGroup) && (!(rowPtrFinPrev && groupEnd))) -> rowPtrReadAddr,
         ((state === sDataMoveRow) && (rowPtrFin && groupEnd)) -> colReadAddr,
-        ((state === sDataMoveRowGroup) && (rowPtrFinPrev && groupEnd)) -> colReadAddr,
         ((state === sDataMoveCol) && !(colFin && groupEnd)) -> colReadAddr,
         ((state === sDataMoveCol) && (colFin && groupEnd)) -> valReadAddr,
         ((state === sDataMoveVal) && !(valFin && groupEnd)) -> valReadAddr,
@@ -251,10 +232,10 @@ when(vrArbiter.io.out.valid){
     is(sIdle){
       when(start){
         state := sDataMoveRow
-        rowPtrAddr := dec.io.sramPtr + bankBlockSizeBytes.U
         colReadAddr := dec.io.sramCol
         valReadAddr := dec.io.sramVal
         denReadAddr := dec.io.sramDen
+        rowPtrAddr := dec.io.sramPtr
       }
     }
     is(sDataMoveRow){
@@ -262,21 +243,9 @@ when(vrArbiter.io.out.valid){
         when(groupEnd){
           state := sDataMoveCol
           colReadAddr := colReadAddr + bankBlockSizeBytes.U
-        }.otherwise{
-          state := sDataMoveRowGroup
         }
       }.otherwise{
-        rowPtrAddr := rowPtrAddr + bankBlockSizeBytes.U
-      }
-    }
-    is(sDataMoveRowGroup){
-      when(rowPtrFinPrev){
-         when(groupEnd){
-          state := sDataMoveRowGroup
-          colReadAddr := colReadAddr + bankBlockSizeBytes.U
-         }
-      }.otherwise{
-        state := sDataMoveRow
+        rowPtrAddr := rowPtrAddr + (cp.blockSize/8).U
       }
     }
     is(sDataMoveCol){
