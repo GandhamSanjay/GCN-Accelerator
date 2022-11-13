@@ -47,6 +47,57 @@ class SPReadData(val scratchType: String = "Col")(implicit p: Parameters) extend
   val data = if(scratchType == "Out"){UInt(mp.dataBits.W)}else{UInt(cp.bankBlockSize.W)}
 }
 
+// banked scratch
+class BankedScratchpad(scratchType: String = "Col")(implicit p: Parameters)extends Module with ISAConstants{
+  val mp = p(AccKey).memParams
+  val cp = p(AccKey).coreParams
+
+    // Scratch size params
+  val blockSize = cp.blockSize
+  val nBanks = cp.nColInDense
+  val scratchSize = cp.scratchSizeMap(scratchType)/nBanks
+  
+  
+  val io = IO(new Bundle {
+    val spWrite = Input(new SPWriteCmd)
+    val spReadCmd = Input(Vec(nBanks, new SPReadCmd))
+    val spReadData = Output(Vec(nBanks, new SPReadData))
+    val writeEn = Input(Bool())
+  })
+
+  // Write
+  val waddr = WireDefault(io.spWrite.addr)
+  val wdata = WireDefault(io.spWrite.data)
+
+  // Read
+  val raddr = io.spReadCmd.map(_.addr)
+  val rdata = Wire(Vec(nBanks, UInt(blockSize.W)))
+
+  val ram = Seq.fill(nBanks){
+    SyncReadMem(scratchSize, UInt(blockSize.W))
+  }
+
+  when(io.writeEn){
+  val writeIdx = waddr >> log2Ceil(mp.dataBits/8)
+    for (i <- 0 until (nBanks)){
+      ram(i).write(writeIdx, wdata((i+1)*blockSize - 1, i*blockSize))
+    }
+  }
+
+  
+ 
+  val raddrByteAlign =  (raddr.map(_ >> log2Ceil(blockSize/8)))
+  val bankIdx = raddrByteAlign.map(_ >> (log2Ceil(nBanks)))
+  for (i <- 0 until (nBanks)){
+    rdata(i) := ram(i).read(bankIdx(i), true.B)
+  }
+  for(i <- 0 until nBanks){
+    io.spReadData(i).data := rdata(i)
+  }
+
+  assert(rdata(0) =/= 19.U)
+}
+
 // Masked Writes 512 bits and reads 512 bits at a time.
 class GlobalBuffer()(implicit p: Parameters)extends Module with ISAConstants{
   val mp = p(AccKey).memParams
