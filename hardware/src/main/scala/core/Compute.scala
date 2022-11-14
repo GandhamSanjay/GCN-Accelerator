@@ -31,7 +31,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val io = IO(new Bundle {
     val inst = Flipped(Decoupled(UInt(INST_BITS.W)))
     val gbReadCmd = Output(new SPReadCmd)
-    val gbReadData = Input(new SPReadData)
+    val gbReadData = Input(new SPReadData(scratchType = "Global"))
     val valid = Input(Bool())
     val done = Output(Bool())
   })
@@ -151,6 +151,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     // vrArbiter.io.in(i).ready <> groupArray(i).io.vrEntry.ready
     groupArray(i).io.nNonZero.bits := nNonZeroPerGroup
     groupArray(i).io.nNonZero.valid := start
+    groupArray(i).io.start := (state === sCompute)
     groupArray(i).io.spWrite.bits.spSel :=     
       MuxLookup(state,
       0.U, // default
@@ -199,6 +200,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
         sDataMoveDen -> ((cp.nColInDense.U << 1.U) - 1.U)
       ))
   }
+  val computeDone = groupArray.map(_.io.done).reduce(_&&_)
 
 // group select
   when((((state === sDataMoveRow) && rowPtrFin)||(state === sDataMoveCol) && colFin)||((state === sDataMoveVal) && valFin)){
@@ -272,6 +274,11 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
       denReadAddr := denReadAddr + bankBlockSizeBytes.U
       when(denFin){
         state := sCompute
+      }
+    }
+    is(sCompute){
+      when(computeDone){
+        state := sIdle
       }
     }
   }

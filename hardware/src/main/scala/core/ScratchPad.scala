@@ -44,7 +44,7 @@ class SPReadCmd(implicit p: Parameters) extends Bundle{
 class SPReadData(val scratchType: String = "Col")(implicit p: Parameters) extends Bundle{
   val cp = p(AccKey).coreParams
   val mp = p(AccKey).memParams
-  val data = if(scratchType == "Out"){UInt(mp.dataBits.W)}else{UInt(cp.bankBlockSize.W)}
+  val data = if(scratchType == "Out"){UInt(mp.dataBits.W)}else if(scratchType == "Global"){UInt(cp.bankBlockSize.W)} else{UInt(cp.blockSize.W)}
 }
 
 // banked scratch

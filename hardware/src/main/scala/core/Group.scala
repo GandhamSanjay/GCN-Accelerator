@@ -7,15 +7,11 @@ import scala.math._
 import ISA._
 import gcn.core.util.MuxTree
 
-// class PECSRIO(implicit p: Parameters) extends Bundle{
-//   val cp = p(AccKey).coreParams
-//   val sramColVal = Input(UInt(C_SRAM_OFFSET_BITS.W))
-//   val sramPtr = Input(UInt(C_SRAM_OFFSET_BITS.W))
-//   val sramDen = Input(UInt(C_SRAM_OFFSET_BITS.W))
-//   val denXSize = Input(UInt(C_XSIZE_BITS.W))
-//   val spaYSize = Input(UInt(C_YSIZE_BITS.W))
-//   val rowIdx = Input(UInt(C_XSIZE_BITS.W))
-// }
+class rowPtrData(implicit p: Parameters) extends Bundle{
+  val cp = p(AccKey).coreParams
+  val rowPtr1Data = UInt(32.W)
+  val rowPtr2Data = UInt(32.W)
+}
 
 
 // /* Group
@@ -30,9 +26,11 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     val mask = Input(UInt((nBanks).W))
     val nNonZero = Flipped(ValidIO(UInt(32.W)))
     // val vrEntry = Decoupled(new VRTableEntry)
-    // val start = Input(Bool())
+    val start = Input(Bool())
+    val done = Output(Bool())
   })
   
+  val pulse = io.start && RegNext(io.start)
   val rowPtrSize = RegEnable(io.nRowPtrInGroup.bits, io.nRowPtrInGroup.valid)
   assert(rowPtrSize =/= 19.U)
   val nNonZero = RegEnable(io.nNonZero.bits, io.nNonZero.valid)
@@ -42,7 +40,6 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     rowPtrBegin := rowPtrBegin + (groupID.U << Log2(io.nNonZero.bits))
     rowPtrEnd := rowPtrEnd + ((groupID + 1).U << Log2(io.nNonZero.bits))
   }
-  val isVRwithPrevGroup_q = Reg(Bool())
   val numRows_q = Reg(UInt(cp.blockSize.W))
   // val decompressDone = Wire(Bool())
   // val vrQueue = Module(new Queue(new VRTableEntryWithGroup, 1)) 
@@ -78,7 +75,8 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   spCol.io.mask.get := io.mask
   spVal.io.mask.get := io.mask
 
-  val blockSizeBytes = (cp.blockSize/8)
+  val blockSizeBytes = (cp.blockSize/8).U
+  io.done := false.B
 
   /* Pipeline Stage: D1
   Cycles = 2
@@ -90,44 +88,81 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   Output:
     1. rowPtrData1, rowPtrData2, (currRowPtr = rowPtr1Data) and peReq goes to D2.
   */
+  val d1Queue = Module(new Queue(new rowPtrData(), 15))
+  val d1_reqValid_q = Reg(Bool())
+  val sIdle :: sRowPtr1 :: sRowPtr2  :: Nil = Enum(3)
+  val d1_state_q = RegInit(sIdle)
+  val d1_statePrev_q = RegNext(d1_state_q)
+  val d1_rowPtrAddr_q = RegInit(0.U(M_SRAM_OFFSET_BITS.W))
+  val d1_rowPtrInc = Wire(Bool())
+  val d1_rowPtrAddr = Mux(d1_rowPtrInc, d1_rowPtrAddr_q + blockSizeBytes, d1_rowPtrAddr_q) 
+  val d1_rowPtr1Data_q = Reg(chiselTypeOf(spPtr.io.spReadData.data))
+  val d1_rowPtr2Data_q = Reg(chiselTypeOf(spPtr.io.spReadData.data))
+  val isVR = (spPtr.io.spReadData.data =/= rowPtrBegin)
+  val isVR_q = RegEnable(isVR, pulse)
+  val d1_numRowPtr_q = Reg(UInt(32.W))
+  when((d1_state_q === sRowPtr2)){
+    d1_numRowPtr_q := d1_numRowPtr_q + 2.U
+  }
+  val d1_numRowPtr = Mux((d1_state_q === sRowPtr2), d1_numRowPtr_q + 2.U, d1_numRowPtr_q)
+  val rowPtrDone = d1_numRowPtr === rowPtrSize
+  d1Queue.io.enq.bits.rowPtr1Data := d1_rowPtr1Data_q
+  d1Queue.io.enq.bits.rowPtr2Data := d1_rowPtr2Data_q
+  d1Queue.io.enq.valid := d1_reqValid_q
 
-  // val d1_moving = Wire(Bool())
-  // val sIdle :: sRowPtr1 :: sRowPtr2 :: Nil = Enum(3)
-  // val d1_state_q = RegInit(sIdle)
-  // val d1_ready = (d1_state_q === sIdle) || ((d1_state_q === sRowPtr2) && d1_moving)
-  // val d1_isrowPtr1 = ((d1_state_q === sIdle) || ((d1_state_q === sRowPtr2) && d1_moving))
-  // val d1_rowPtrAddr1 =  (io.peReq.bits.rowIdx << log2Ceil(cp.blockSize/8))
-  // val d1_peReqNext_q = RegNext(d1_peReq_q)
-  // val d1_rowPtrAddr2 =  ((d1_peReq_q.rowIdx + 1.U) << log2Ceil(blockSizeBytes)) 
+  when((d1_state_q === sRowPtr1) || (d1_state_q === sRowPtr2)){
+    d1_rowPtrAddr_q := d1_rowPtrAddr
+    d1_rowPtrInc := true.B
+  }.otherwise{
+    d1_rowPtrInc := false.B
+  }
 
-  // switch(d1_state_q){
-  //   is(sIdle){
-  //     when(io.start){
-  //       d1_state_q := sRowPtr1
-  //     }
-  //   }
-  //   is(sRowPtr1){
-  //     d1_state_q := sRowPtr2
-  //   }
-  //   is(sRowPtr2){
-  //     when(d1_moving){
-  //       when(io.peReq.valid){
-  //         d1_state_q := sRowPtr1
-  //       }.otherwise{
-  //         d1_state_q := sIdle 
-  //       }
-  //     }
-  //   }
-  // }
+  switch(d1_state_q){
+    is(sIdle){
+      d1_rowPtrAddr_q := 0.U
+      when(pulse){
+        when(numRows_q === 0.U){
+          d1_rowPtr1Data_q := rowPtrBegin - rowPtrBegin
+          d1_rowPtr2Data_q := rowPtrEnd - rowPtrBegin
+          d1_reqValid_q := true.B
+        }.otherwise{
+          when(isVR){
+            d1_rowPtr1Data_q := rowPtrBegin
+            d1_rowPtr2Data_q := spPtr.io.spReadData.data - rowPtrBegin
+            d1_reqValid_q := true.B
+            d1_state_q := sRowPtr1
+          }.otherwise{
+            d1_state_q := sRowPtr1
+          }
+        }
+      }.otherwise{
+        d1_reqValid_q := false.B
+      }
+    }
+    is(sRowPtr1){
+      d1_reqValid_q := false.B
+      d1_state_q := sRowPtr2
+      d1_rowPtr1Data_q := spPtr.io.spReadData.data - rowPtrBegin
+    }
+    is(sRowPtr2){
+      d1_rowPtr2Data_q := spPtr.io.spReadData.data - rowPtrBegin
+      d1_reqValid_q := true.B
+      when(rowPtrDone){
+        d1_state_q := sIdle
+        d1_reqValid_q := false.B
+      }.otherwise{
+        d1_rowPtr1Data_q := d1_rowPtr2Data_q 
+        d1_state_q := sRowPtr2
+      }
+    }
+  }
+  d1Queue.io.deq.ready := true.B
+  assert(d1Queue.io.deq.bits.rowPtr1Data =/= 19.U)
 
-  // spPtr.io.spReadCmd.addr  := Mux(d1_isrowPtr1, d1_rowPtrAddr1, d1_rowPtrAddr2)
-  // val d1_rowPtr1Data_q = RegEnable(spPtr.io.spReadData.data, d1_state_q === sRowPtr1)
-  // val d1_rowPtr2Data_q = RegEnable(spPtr.io.spReadData.data, d1_state_q === sRowPtr2)
-  // val d1_rowPtr2Data = Mux(d1_state_q === sRowPtr2, spPtr.io.spReadData.data, d1_rowPtr2Data_q)
-  // val d1_isRowEmpty = (d1_rowPtr2Data - d1_rowPtr1Data_q) === 0.U
-  // val d1_valid = (d1_state_q === sRowPtr2) && !d1_isRowEmpty
-  // val d1_currRowPtr = d1_rowPtr1Data_q
-  // val d1_currDenCol = 0.U(cp.blockSize.W)
+  spPtr.io.spReadCmd.addr  := Mux(d1_state_q === sIdle, d1_rowPtrAddr_q, d1_rowPtrAddr)
+  val d1_valid = (pulse && (numRows_q === 0.U))
+  val d1_currRowPtr = d1_rowPtr1Data_q
+  val d1_currDenCol = 0.U(cp.blockSize.W)
 
   // /* Pipeline Stage: D2
   // Cycles = 1
