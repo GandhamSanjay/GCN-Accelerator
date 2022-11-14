@@ -111,7 +111,7 @@ class GlobalBuffer()(implicit p: Parameters)extends Module with ISAConstants{
   val io = IO(new Bundle {
     val spWrite = Input(new SPWriteCmd(scratchType = "Global"))
     val spReadCmd = Input(new SPReadCmd)
-    val spReadData = Output(new SPReadData)
+    val spReadData = Output(new SPReadData(scratchType = "Global"))
     val writeEn = Input(Bool())
   })
 

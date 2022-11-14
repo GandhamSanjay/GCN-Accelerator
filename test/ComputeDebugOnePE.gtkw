@@ -1,31 +1,37 @@
 [*]
 [*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
-[*] Sat Nov 12 21:50:41 2022
+[*] Mon Nov 14 03:07:46 2022
 [*]
 [dumpfile] "/home/sanjay/research/GCN-Accelerator/test/Wrapper.vcd"
-[dumpfile_mtime] "Sat Nov 12 21:50:34 2022"
-[dumpfile_size] 212590
+[dumpfile_mtime] "Mon Nov 14 02:20:05 2022"
+[dumpfile_size] 363053
 [savefile] "/home/sanjay/research/GCN-Accelerator/test/ComputeDebugOnePE.gtkw"
-[timestart] 173660
+[timestart] 261490
 [size] 1920 1043
-[pos] -51 -51
-*-14.000000 213470 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[pos] 1797 -78
+*-13.000000 290200 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] Wrapper.
 [treeopen] Wrapper.core.
 [treeopen] Wrapper.core.compute.
-[sst_width] 321
-[signals_width] 545
+[treeopen] Wrapper.core.compute.groupArray_0.
+[sst_width] 233
+[signals_width] 270
 [sst_expanded] 1
 [sst_vpaned_height] 298
-@22
-Wrapper.core.compute.groupArray_0.spDen_io_spWrite_addr[31:0]
-Wrapper.core.compute.groupArray_0.spDen_io_spWrite_data[63:0]
 @28
-Wrapper.core.compute.groupArray_0.spDen_io_writeEn
-Wrapper.core.compute.groupArray_0.spDen_io_mask[1:0]
+Wrapper.core.compute.groupArray_0.d1_state_q[1:0]
 @22
-Wrapper.core.compute.io_gbReadCmd_addr[31:0]
+Wrapper.core.compute.groupArray_0.d1_numRowPtr_q[31:0]
+Wrapper.core.compute.groupArray_0._d1_numRowPtr_q_T_1[31:0]
+@28
+Wrapper.core.compute.groupArray_0.rowPtrDone
+@22
+Wrapper.core.compute.groupArray_0.spPtr_io_spReadData_data[31:0]
 @23
-Wrapper.core.compute.io_gbReadData_data[63:0]
+Wrapper.core.compute.groupArray_0.spPtr_io_spReadCmd_addr[31:0]
+@22
+Wrapper.core.compute.groupArray_0.d1_rowPtr2Data_q[31:0]
+Wrapper.core.compute.groupArray_0.d1_rowPtr2Data_q[31:0]
+Wrapper.core.compute.groupArray_0.d1_numRowPtr_q[31:0]
 [pattern_trace] 1
 [pattern_trace] 0

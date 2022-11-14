@@ -30,7 +30,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     val done = Output(Bool())
   })
   
-  val pulse = io.start && RegNext(io.start)
+  val pulse = io.start && !RegNext(io.start)
   val rowPtrSize = RegEnable(io.nRowPtrInGroup.bits, io.nRowPtrInGroup.valid)
   assert(rowPtrSize =/= 19.U)
   val nNonZero = RegEnable(io.nNonZero.bits, io.nNonZero.valid)
@@ -41,6 +41,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     rowPtrEnd := rowPtrEnd + ((groupID + 1).U << Log2(io.nNonZero.bits))
   }
   val numRows_q = Reg(UInt(cp.blockSize.W))
+  val d1_rowPtrAddr = Wire(UInt(32.W))
   // val decompressDone = Wire(Bool())
   // val vrQueue = Module(new Queue(new VRTableEntryWithGroup, 1)) 
   // vrQueue.io.enq.valid := decompressDone
@@ -69,13 +70,13 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   spDen.io.spReadCmd.foreach{
     _.addr := 0.U
   }
-  spPtr.io.spReadCmd.addr := io.spWrite.bits.spWriteCmd.addr
+  spPtr.io.spReadCmd.addr := d1_rowPtrAddr
   spPtr.io.mask.get := io.mask
   spCol.io.spReadCmd.addr := io.spWrite.bits.spWriteCmd.addr
   spCol.io.mask.get := io.mask
   spVal.io.mask.get := io.mask
 
-  val blockSizeBytes = (cp.blockSize/8).U
+  val blockSizeBytes = (cp.blockSize/8)
   io.done := false.B
 
   /* Pipeline Stage: D1
@@ -95,20 +96,22 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val d1_statePrev_q = RegNext(d1_state_q)
   val d1_rowPtrAddr_q = RegInit(0.U(M_SRAM_OFFSET_BITS.W))
   val d1_rowPtrInc = Wire(Bool())
-  val d1_rowPtrAddr = Mux(d1_rowPtrInc, d1_rowPtrAddr_q + blockSizeBytes, d1_rowPtrAddr_q) 
+  d1_rowPtrAddr := Mux(d1_rowPtrInc, d1_rowPtrAddr_q + blockSizeBytes.U, d1_rowPtrAddr_q) 
   val d1_rowPtr1Data_q = Reg(chiselTypeOf(spPtr.io.spReadData.data))
   val d1_rowPtr2Data_q = Reg(chiselTypeOf(spPtr.io.spReadData.data))
+  dontTouch(d1_rowPtr1Data_q)
+  assert((d1_rowPtr1Data_q + d1_rowPtr2Data_q )=/= 19.U)
   val isVR = (spPtr.io.spReadData.data =/= rowPtrBegin)
   val isVR_q = RegEnable(isVR, pulse)
-  val d1_numRowPtr_q = Reg(UInt(32.W))
-  when((d1_state_q === sRowPtr2)){
-    d1_numRowPtr_q := d1_numRowPtr_q + 2.U
-  }
-  val d1_numRowPtr = Mux((d1_state_q === sRowPtr2), d1_numRowPtr_q + 2.U, d1_numRowPtr_q)
-  val rowPtrDone = d1_numRowPtr === rowPtrSize
+  val d1_numRowPtr_q = RegInit(0.U(32.W))
+  val rowPtrDone = d1_numRowPtr_q === rowPtrSize
   d1Queue.io.enq.bits.rowPtr1Data := d1_rowPtr1Data_q
   d1Queue.io.enq.bits.rowPtr2Data := d1_rowPtr2Data_q
   d1Queue.io.enq.valid := d1_reqValid_q
+
+  when((d1_state_q === sRowPtr2) && !rowPtrDone){
+    d1_numRowPtr_q := d1_numRowPtr_q + 2.U
+  }
 
   when((d1_state_q === sRowPtr1) || (d1_state_q === sRowPtr2)){
     d1_rowPtrAddr_q := d1_rowPtrAddr
@@ -121,7 +124,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     is(sIdle){
       d1_rowPtrAddr_q := 0.U
       when(pulse){
-        when(numRows_q === 0.U){
+        when(rowPtrSize === 0.U){
           d1_rowPtr1Data_q := rowPtrBegin - rowPtrBegin
           d1_rowPtr2Data_q := rowPtrEnd - rowPtrBegin
           d1_reqValid_q := true.B
@@ -145,92 +148,91 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
       d1_rowPtr1Data_q := spPtr.io.spReadData.data - rowPtrBegin
     }
     is(sRowPtr2){
-      d1_rowPtr2Data_q := spPtr.io.spReadData.data - rowPtrBegin
-      d1_reqValid_q := true.B
       when(rowPtrDone){
-        d1_state_q := sIdle
-        d1_reqValid_q := false.B
+        when(d1_rowPtr2Data_q =/= rowPtrEnd){
+          d1_rowPtr1Data_q := d1_rowPtr2Data_q
+          d1_rowPtr2Data_q := rowPtrEnd
+        }.otherwise{
+          d1_state_q := sIdle
+          d1_reqValid_q := false.B
+        }
       }.otherwise{
+        d1_rowPtr2Data_q := spPtr.io.spReadData.data - rowPtrBegin
+        d1_reqValid_q := true.B
         d1_rowPtr1Data_q := d1_rowPtr2Data_q 
         d1_state_q := sRowPtr2
       }
     }
   }
-  d1Queue.io.deq.ready := true.B
-  assert(d1Queue.io.deq.bits.rowPtr1Data =/= 19.U)
 
   spPtr.io.spReadCmd.addr  := Mux(d1_state_q === sIdle, d1_rowPtrAddr_q, d1_rowPtrAddr)
-  val d1_valid = (pulse && (numRows_q === 0.U))
-  val d1_currRowPtr = d1_rowPtr1Data_q
+  val d1_valid = d1Queue.io.deq.valid
+  val d1_currRowPtr = d1Queue.io.deq.bits.rowPtr1Data
   val d1_currDenCol = 0.U(cp.blockSize.W)
 
-  // /* Pipeline Stage: D2
-  // Cycles = 1
-  // Inputs:
-  //   1. rowPtr1Data, rowPtr2Data and (currRowPtr = rowPtr1Data), peReq from D1 stage
-  //   2. rowPtr1Data, rowPtr2Data, updated currRowPtr, peReq from D2 stage
-  // Performs:
-  //   1. Arbitrates between requests from D1 stage and prev D2 stage. prev D2 stage is always given priority
-  //   2. Reads the colIdx and sends the data to stage DR
-  // Output:
-  //   1. colIdx and peReq goes to DR.
-  // */
-  // val d2_nextValid = Wire(Bool())
-  // val d2_nextValid_q = RegInit(false.B)
-  // val d2_nextRowPtr_q = Reg(chiselTypeOf(d1_currRowPtr))
-  // val d2_nextDenCol_q = Reg(chiselTypeOf(d1_currDenCol))
-  // val d2_valid_q = RegInit(false.B)
-  // val d2_rowPtr1Data_q = RegInit(0.U(cp.blockSize.W))
-  // val d2_rowPtr2Data_q = RegInit(0.U(cp.blockSize.W))
-  // val d2_currRowPtr_q = RegInit(0.U(cp.blockSize.W))
-  // val d2_currDenCol_q = RegInit(0.U(cp.blockSize.W))
-  // val d2_peReq_q = Reg(chiselTypeOf(d1_peReqNext_q))
-  // val d2_peReq = Mux(d2_nextValid_q, d2_peReq_q, d1_peReqNext_q)
-  // val d2_currRowPtr = Mux(d2_nextValid_q, d2_nextRowPtr_q, d1_currRowPtr)
-  // val d2_currDenCol = Mux(d2_nextValid_q, d2_nextDenCol_q, d1_currDenCol)
-  // val d2_rowPtr1Data = Mux(d2_nextValid_q, d2_rowPtr1Data_q, d1_rowPtr1Data_q)
-  // val d2_rowPtr2Data = Mux(d2_nextValid_q, d2_rowPtr2Data_q, d1_rowPtr2Data_q)
-  // val d2_endOfRow_q = RegInit(false.B)
-  // val d2_endOfCol_q = RegInit(false.B)
-  // val d2_isNewOutput_q = RegNext(d2_currRowPtr === d2_rowPtr1Data)
-  // d1_moving := !d2_nextValid
-  // d2_valid_q := d2_nextValid || d1_valid
+  /* Pipeline Stage: D2
+  Cycles = 1
+  Inputs:
+    1. rowPtr1Data, rowPtr2Data and (currRowPtr = rowPtr1Data), peReq from D1 stage
+    2. rowPtr1Data, rowPtr2Data, updated currRowPtr, peReq from D2 stage
+  Performs:
+    1. Arbitrates between requests from D1 stage and prev D2 stage. prev D2 stage is always given priority
+    2. Reads the colIdx and sends the data to stage DR
+  Output:
+    1. colIdx and peReq goes to DR.
+  */
+  val d2_nextValid = Wire(Bool())
+  val d2_nextValid_q = RegInit(false.B)
+  val d2_nextRowPtr_q = Reg(chiselTypeOf(d1_currRowPtr))
+  val d2_nextDenCol_q = Reg(chiselTypeOf(d1_currDenCol))
+  val d2_valid_q = RegInit(false.B)
+  val d2_rowPtr1Data_q = RegInit(0.U(cp.blockSize.W))
+  val d2_rowPtr2Data_q = RegInit(0.U(cp.blockSize.W))
+  val d2_currRowPtr_q = RegInit(0.U(cp.blockSize.W))
+  val d2_currDenCol_q = RegInit(0.U(cp.blockSize.W))
+  val d2_currRowPtr = Mux(d2_nextValid_q, d2_nextRowPtr_q, d1_currRowPtr)
+  val d2_currDenCol = Mux(d2_nextValid_q, d2_nextDenCol_q, d1_currDenCol)
+  val d2_rowPtr1Data = Mux(d2_nextValid_q, d2_rowPtr1Data_q, d1Queue.io.deq.bits.rowPtr1Data)
+  val d2_rowPtr2Data = Mux(d2_nextValid_q, d2_rowPtr2Data_q, d1Queue.io.deq.bits.rowPtr2Data)
+  val d2_endOfRow_q = RegInit(false.B)
+  val d2_endOfCol_q = RegInit(false.B)
+  val d2_isNewOutput_q = RegNext(d2_currRowPtr === d2_rowPtr1Data)
+  d1Queue.io.deq.ready := !d2_nextValid
+  d2_valid_q := d2_nextValid || d1_valid
   
-  // d2_peReq_q := d2_peReq
-  // d2_rowPtr1Data_q := d2_rowPtr1Data
-  // d2_rowPtr2Data_q := d2_rowPtr2Data
-  // d2_currRowPtr_q := d2_currRowPtr
-  // d2_currDenCol_q := d2_currDenCol
-  // spCol.io.spReadCmd.addr := d2_peReq.sramColVal + (d2_currRowPtr << log2Ceil(blockSizeBytes))
-  // val d2_endOfCol = (d2_currDenCol === d2_peReq.denXSize - 1.U)
-  // val d2_endOfRow = (d2_currRowPtr === d2_rowPtr2Data - 1.U)
-  // d2_endOfRow_q := d2_endOfRow
-  // d2_endOfCol_q := d2_endOfCol
-  // val d2_endOfColRow = d2_endOfCol && d2_endOfRow
-  // d2_nextDenCol_q := Mux(d2_endOfRow, d2_currDenCol + 1.U, d2_currDenCol)
-  // d2_nextRowPtr_q := Mux(d2_endOfRow, d2_rowPtr1Data , d2_currRowPtr + 1.U)
-  // d2_nextValid := !d2_endOfColRow && d2_valid_q
-  // d2_nextValid_q := d2_nextValid
+  d2_rowPtr1Data_q := d2_rowPtr1Data
+  d2_rowPtr2Data_q := d2_rowPtr2Data
+  d2_currRowPtr_q := d2_currRowPtr
+  d2_currDenCol_q := d2_currDenCol
+  spCol.io.spReadCmd.addr := (d2_currRowPtr << log2Ceil(blockSizeBytes))
+  val d2_endOfCol = true.B
+  val d2_endOfRow = (d2_currRowPtr === d2_rowPtr2Data - 1.U)
+  d2_endOfRow_q := d2_endOfRow
+  d2_endOfCol_q := d2_endOfCol
+  val d2_endOfColRow = d2_endOfCol && d2_endOfRow
+  d2_nextDenCol_q := Mux(d2_endOfRow, d2_currDenCol + 1.U, d2_currDenCol)
+  d2_nextRowPtr_q := Mux(d2_endOfRow, d2_rowPtr1Data , d2_currRowPtr + 1.U)
+  d2_nextValid := !d2_endOfColRow && d2_valid_q
+  d2_nextValid_q := d2_nextValid
 
-  // /* Pipeline Stage: DR (DataRead)
-  // Cycles = 1
-  // Inputs:
-  //   1. colIdx, denCol  and peReq from D2 stage
-  //   2. colIdx, denCol  and peReqfrom M stage
-  // Performs:
-  //   1. Arbitrates between D1 stage and M stage. M stage is always given priority
-  //   2. Reads the colIdx and sends the data to stage M
-  // Output:
-  //   1. RowPtrData1, RowPtrData2 and goes to D2.
-  // */
-  // val dr_valid_q = RegNext(d2_valid_q)
-  // val dr_colIdx = spCol.io.spReadData.data
-  // val dr_peReqdenXSize_q = RegEnable(d2_peReq_q.denXSize, dr_valid_q)
-  // val dr_currSpaRow_q = RegEnable(d2_peReq_q.rowIdx, dr_valid_q)
-  // val dr_currDenCol_q = RegEnable(d2_currDenCol_q, dr_valid_q)
-  // val dr_outWrite_q = RegEnable(d2_endOfRow_q, dr_valid_q)
-  // val dr_isNewOutput_q = RegEnable(d2_isNewOutput_q, dr_valid_q)
-  // spVal.io.spReadCmd.addr := d2_peReq_q.sramColVal + (d2_currRowPtr_q << log2Ceil(blockSizeBytes))
-  // spDen.io.spReadCmd.addr := d2_peReq_q.sramDen + ((dr_colIdx << log2Ceil(blockSizeBytes)) << Log2(d2_peReq_q.denXSize)) + (d2_currDenCol_q << log2Ceil(blockSizeBytes))
+  /* Pipeline Stage: DR (DataRead)
+  Cycles = 1
+  Inputs:
+    1. colIdx, denCol  and peReq from D2 stage
+    2. colIdx, denCol  and peReqfrom M stage
+  Performs:
+    1. Arbitrates between D1 stage and M stage. M stage is always given priority
+    2. Reads the colIdx and sends the data to stage M
+  Output:
+    1. RowPtrData1, RowPtrData2 and goes to D2.
+  */
+  val dr_valid_q = RegNext(d2_valid_q)
+  val dr_colIdx = spCol.io.spReadData.data
+  val dr_currDenCol_q = RegEnable(d2_currDenCol_q, dr_valid_q)
+  val dr_outWrite_q = RegEnable(d2_endOfRow_q, dr_valid_q)
+  val dr_isNewOutput_q = RegEnable(d2_isNewOutput_q, dr_valid_q)
+  spVal.io.spReadCmd.addr := (d2_currRowPtr_q << log2Ceil(blockSizeBytes))
+  // spDen.io.spReadCmd.addr := (dr_colIdx << log2Ceil(blockSizeBytes)) << Log2(io.denXSize) + (d2_currDenCol_q << log2Ceil(blockSizeBytes))
+  assert(dr_colIdx =/= 19.U)
 
 }
