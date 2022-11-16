@@ -83,7 +83,7 @@ class ZcuConfig extends Config((site, here, up) => {
       crParams = CRParams(),
       coreParams = CoreParams(),
       memParams = AXIParams(coherent = false,
-        addrBits = 32,
+        addrBits = 64,
         dataBits = 512,
         lenBits  = 8,
         userBits = 1),

@@ -17,11 +17,11 @@ import  ISA._
  *   - SOUT
  */
 class MemDecode extends Bundle{
-  val empty = UInt(159.W)
+  val empty = UInt(123.W)
   val ysize = UInt(M_YSIZE_BITS.W)
   val xsize = UInt(M_XSIZE_BITS.W)
-  val sram_offset = UInt(M_DRAM_OFFSET_BITS.W)
-  val dram_offset = UInt(M_SRAM_OFFSET_BITS.W)
+  val sram_offset = UInt(M_SRAM_OFFSET_BITS.W)
+  val dram_offset = UInt(M_DRAM_OFFSET_BITS.W)
   val id = UInt(M_ID_BITS.W)
   val op = UInt(OP_BITS.W)
 }
@@ -34,7 +34,7 @@ class MemDecode extends Bundle{
 class SpMMDecode extends Bundle {
 
   val empty = UInt(41.W)
-  val psum_valid = Bool()
+  val pr_valid = UInt(C_PR_BITS.W)
   val row_size = UInt(C_YSIZE_BITS.W)
   val col_size = UInt(C_YSIZE_BITS.W)
   val den_size = UInt(C_XSIZE_BITS.W)
@@ -162,7 +162,8 @@ class ComputeDecode extends Module with ISAConstants{
     val denSize = Output(UInt(C_XSIZE_BITS.W))
     val colSize = Output(UInt(C_YSIZE_BITS.W))
     val rowSize = Output(UInt(C_YSIZE_BITS.W))
-    val psumValid = Output(Bool())
+    val prStart = Output(Bool())
+    val prEnd = Output(Bool())
   })
   val dec = io.inst.asTypeOf(new SpMMDecode)
   io.sramVal := dec.sram_offset_val
@@ -172,7 +173,8 @@ class ComputeDecode extends Module with ISAConstants{
   io.denSize := dec.den_size
   io.colSize := dec.col_size
   io.rowSize := dec.row_size
-  io.psumValid := dec.psum_valid
+  io.prStart := dec.pr_valid(1)
+  io.prEnd := dec.pr_valid(0)
 }
 
 // /** StoreDecode.

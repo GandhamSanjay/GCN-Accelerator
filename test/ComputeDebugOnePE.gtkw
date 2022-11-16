@@ -1,36 +1,25 @@
 [*]
 [*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
-[*] Wed Nov 16 19:17:50 2022
+[*] Wed Nov 16 21:33:58 2022
 [*]
 [dumpfile] "/home/sanjay/research/GCN-Accelerator/test/Wrapper.vcd"
-[dumpfile_mtime] "Wed Nov 16 19:17:46 2022"
-[dumpfile_size] 418954
+[dumpfile_mtime] "Wed Nov 16 21:32:17 2022"
+[dumpfile_size] 443498
 [savefile] "/home/sanjay/research/GCN-Accelerator/test/ComputeDebugOnePE.gtkw"
-[timestart] 352890
+[timestart] 384730
 [size] 1920 1043
 [pos] 1809 -66
-*-14.000000 380000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-14.000000 424000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] Wrapper.
 [treeopen] Wrapper.core.
-[treeopen] Wrapper.core.compute.
-[treeopen] Wrapper.core.compute.groupArray_0.
-[sst_width] 379
-[signals_width] 423
+[sst_width] 382
+[signals_width] 719
 [sst_expanded] 1
-[sst_vpaned_height] 298
+[sst_vpaned_height] 616
 @22
-Wrapper.core.compute.outDataPsumAgg[63:0]
-Wrapper.core.compute.outDataNoAgg[63:0]
-Wrapper.core.compute.outDataAgg[63:0]
-@28
-Wrapper.core.compute.psumRow
-@29
-Wrapper.core.compute.psumRowAgg
-@22
-Wrapper.core.compute.psumData_q[63:0]
-Wrapper.core.compute.io_spOutWrite_bits_addr[31:0]
-Wrapper.core.compute.io_spOutWrite_bits_data[63:0]
-@28
-Wrapper.core.compute.io_spOutWrite_valid
+Wrapper.core.store.io_me_wr_data_bits_strb[63:0]
+Wrapper.core.store.totalBytesRem[35:0]
+@25
+Wrapper.core.store.totalBytes[35:0]
 [pattern_trace] 1
 [pattern_trace] 0

@@ -24,17 +24,11 @@ class Core(implicit p: Parameters) extends Module {
   val load = Module(new Load)
   val globalBuffer = Module(new GlobalBuffer())
   val outputScratchpad = Module(new OutputScratchpad())
-  val psumScratchpad = Module(new GlobalBuffer(scratchType = "Psum"))
   val compute = Module(new Compute)
   val store = Module(new Store)
   val start = Wire(Bool())
 
-  psumScratchpad.io.spWrite <> load.io.psumWrite.bits
-  psumScratchpad.io.writeEn := load.io.psumWrite.fire
-  psumScratchpad.io.spReadCmd <> compute.io.psumReadCmd
-  psumScratchpad.io.spReadData <> compute.io.psumReadData
   load.io.spWrite.ready := true.B
-  load.io.psumWrite.ready := true.B
   globalBuffer.io.spWrite <> load.io.spWrite.bits
   globalBuffer.io.writeEn := load.io.spWrite.fire
   globalBuffer.io.spReadCmd <> compute.io.gbReadCmd
@@ -63,7 +57,7 @@ class Core(implicit p: Parameters) extends Module {
 
   // Fetch instructions (tasks) from memory (DRAM) into queues (SRAMs)
   fetch.io.launch := io.cr.launch
-  fetch.io.ins_baddr := io.cr.vals(0)
+  fetch.io.ins_baddr := Cat(io.cr.vals(0),io.cr.vals(0))
   fetch.io.ins_count := io.cr.vals(1)
 
   // Load inputs and weights from memory (DRAM) into scratchpads (SRAMs)
@@ -89,7 +83,7 @@ class Core(implicit p: Parameters) extends Module {
     }
     is(sLoad){
       when(load.io.done){
-        when(ctr === 5.U){
+        when(ctr === 4.U){
           state := sCompute
         }.otherwise{
           state := sLoad

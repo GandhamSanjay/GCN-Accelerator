@@ -113,7 +113,7 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module with 
       }
     }
     is(sSplit){
-      when(io.inst.ld.fire || io.inst.co.fire ){
+      when(io.inst.ld.fire || io.inst.co.fire || io.inst.st.fire){
         when(packInstSelect === (mp.dataBits - INST_BITS).U){
           packInstSelect := 0.U
           state := sDrain

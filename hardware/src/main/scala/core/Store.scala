@@ -22,11 +22,13 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
     val done = Output(Bool())
     // val ecnt = Output(UInt(regBits.W))
   })
+
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.loadInstQueueEntries))
   val dec = Module(new StoreDecode)
   val storeTime = RegInit(0.U(regBits.W))
   // state machine
+
   val sIdle :: sWriteCmd :: sWriteData :: sReadMem :: sWriteAck :: Nil = Enum(5)
   val state = RegInit(sIdle)
   val start = inst_q.io.deq.fire
@@ -43,6 +45,16 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val nBlockPerTransfer = mp.dataBits / cp.blockSize
   val transferTotal = WireDefault((dec.io.xSize)-1.U >> log2Ceil(nBlockPerTransfer)) + 1.U
   val transferRem = Reg(chiselTypeOf(dec.io.xSize))
+  val totalBytes = WireDefault((dec.io.xSize) << log2Ceil(cp.blockSize/8)) 
+  val totalBytesWritten = Reg(chiselTypeOf(totalBytes))
+  val totalBytesRem = totalBytes - totalBytesWritten
+  val currBytes = Mux(totalBytesRem >= (mp.dataBits/8).U, (mp.dataBits/8).U, totalBytesRem)
+
+  when(state === sIdle){
+    totalBytesWritten := 0.U
+  }.elsewhen((state === sWriteData) && (io.me_wr.data.ready)){
+    totalBytesWritten := totalBytesWritten + currBytes
+  }
 
   // instruction queue
   dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)
@@ -130,7 +142,10 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
 
   io.me_wr.data.valid := state === sWriteData
   io.me_wr.data.bits.data := io.spReadData.data
-  io.me_wr.data.bits.strb := Fill(io.me_wr.data.bits.strb.getWidth, true.B)
+  // io.me_wr.data.bits.strb := Fill(io.me_wr.data.bits.strb.getWidth, true.B)
+  io.me_wr.data.bits.strb := (for(i <- 0 until (mp.dataBits/8))yield{
+    (i.U < totalBytesRem).asUInt
+  }).reverse.reduce(Cat(_,_))
 
   // Store execution time
   // when(done){

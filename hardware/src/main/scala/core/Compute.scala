@@ -33,8 +33,6 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val gbReadCmd = Output(new SPReadCmd)
     val gbReadData = Input(new SPReadData(scratchType = "Global"))
     val spOutWrite = Decoupled(new SPWriteCmd)
-    val psumReadCmd = Output(new SPReadCmd)
-    val psumReadData = Input(new SPReadData(scratchType = "Global"))
     val valid = Input(Bool())
     val done = Output(Bool())
   })
@@ -179,28 +177,22 @@ when(vrArbiter.io.out.valid){
 val aggDone = vRTableReadGroup_q === (cp.nGroups - 1).U
 val currRowInGroup_q = RegInit(0.U(32.W))
 val currRowInGroup = Wire(chiselTypeOf(currRowInGroup_q))
-dontTouch(currRowInGroup_q)
-// psum io
-io.psumReadCmd.addr := 0.U
-val psumData = io.psumReadData.data
-val psumData_q = RegNext(psumData)
-val psumSplitData = for(i <- 0 until cp.nColInDense)yield{
-  psumData_q(((i+1)*cp.blockSize) -1, i*cp.blockSize)
-}
-val psumRow = (state === sCombine) && (currRowInGroup_q === 0.U) && (vRTableReadGroup_q === 0.U)
-val psumRowAgg = dec.io.psumValid && psumRow
-// Partial outputs aggregate 
 val nRowInGroup = vRTableReadData.nRows
 val isVR = vRTableReadData.isVRWithPrevGroup
 val groupOutAddr = currRowInGroup << log2Ceil((cp.blockSize * cp.nColInDense)/8)
 val groupOutData = Wire(chiselTypeOf(groupArray(0).io.outReadData))
-// val groupOutDataPrev = when(psumRowAgg){psumSplitData}.otherwise{ RegEnable(groupOutData, state === sCombine)}
 val groupOutDataPrev = RegEnable(groupOutData, state === sCombine)
 val aggWithPrevGroup = ((currRowInGroup_q === 0.U) && isVR)
 val outDataAgg = groupOutData.map(_.data).zip(groupOutDataPrev.map(_.data)).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
-val outDataPsumAgg = groupOutData.map(_.data).zip(psumSplitData).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
+val prData_q = Reg(chiselTypeOf(outDataAgg))
+val prSplitData = for(i <- 0 until cp.nColInDense)yield{
+  prData_q(((i+1)*cp.blockSize) -1, i*cp.blockSize)
+}
+val prStartRow = (state === sCombine) && (currRowInGroup_q === 0.U) && (vRTableReadGroup_q === 0.U)
+val prRowAgg = dec.io.prStart && prStartRow
+val outDataPrAgg = groupOutData.map(_.data).zip(prSplitData).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
 val outDataNoAgg = groupOutData.map(_.data).reverse.reduce(Cat(_,_))
-val outData = Mux(aggWithPrevGroup, outDataAgg, Mux(psumRowAgg, outDataPsumAgg, outDataNoAgg))
+val outData = Mux(aggWithPrevGroup, outDataAgg, Mux(prRowAgg, outDataPrAgg, outDataNoAgg))
 val outRowCount_q = RegInit(0.U(32.W))
 val outvRCount_q = RegInit(0.U(32.W))
 val outvRCount = Mux(state === sCombineGroup, outvRCount_q + isVR.asUInt, outvRCount_q)
@@ -226,13 +218,20 @@ when(state === sCombine){
     currRowInGroup_q := currRowInGroup
   }
 }
- 
-
 vRTableReadGroup := Mux(((state === sCombine) || (state === sCombineGroup)) && (currRowInGroup === nRowInGroup),vRTableReadGroup_q + 1.U,vRTableReadGroup_q)
 
 io.spOutWrite.bits.addr := outWriteAddr
 io.spOutWrite.bits.data := outData
 io.spOutWrite.valid := outWriteEn
+
+// pr partial sum io
+val prEndRow = (state === sCombine) && (currRowInGroup_q === (nRowInGroup - 1.U)) && (vRTableReadGroup_q === (cp.nGroups - 1).U)
+val prRowWrite = dec.io.prEnd && prEndRow
+val prData = outData
+when(prRowWrite){
+  prData_q := prData
+}
+
 
 
 // group io
