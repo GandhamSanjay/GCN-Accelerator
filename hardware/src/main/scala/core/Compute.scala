@@ -60,7 +60,7 @@ when(vrArbiter.io.out.valid){
 
 
 // state machine
-  val sIdle :: sDataMoveRow :: sDataMoveCol :: sDataMoveVal :: sDataMoveDen ::sCompute :: sCombineGroup :: sCombine :: sDone :: Nil = Enum(9)
+  val sIdle :: sDataMoveRow :: sDataMoveCol :: sDataMoveVal :: sDataMoveDen :: sCompute :: sCombineGroup :: sCombine :: sDone :: Nil = Enum(9)
   val state = RegInit(sIdle)
   val start = inst_q.io.deq.fire
   val inst = RegEnable(inst_q.io.deq.bits, start)
@@ -174,20 +174,33 @@ when(vrArbiter.io.out.valid){
         ((state === sDataMoveDen)) -> denReadAddr
       ))
 
+
 // Partial outputs aggregate 
 val aggDone = vRTableReadGroup_q === (cp.nGroups - 1).U
 val currRowInGroup_q = RegInit(0.U(32.W))
 val currRowInGroup = Wire(chiselTypeOf(currRowInGroup_q))
 dontTouch(currRowInGroup_q)
+// psum io
+io.psumReadCmd.addr := 0.U
+val psumData = io.psumReadData.data
+val psumData_q = RegNext(psumData)
+val psumSplitData = for(i <- 0 until cp.nColInDense)yield{
+  psumData_q(((i+1)*cp.blockSize) -1, i*cp.blockSize)
+}
+val psumRow = (state === sCombine) && (currRowInGroup_q === 0.U) && (vRTableReadGroup_q === 0.U)
+val psumRowAgg = dec.io.psumValid && psumRow
+// Partial outputs aggregate 
 val nRowInGroup = vRTableReadData.nRows
 val isVR = vRTableReadData.isVRWithPrevGroup
 val groupOutAddr = currRowInGroup << log2Ceil((cp.blockSize * cp.nColInDense)/8)
 val groupOutData = Wire(chiselTypeOf(groupArray(0).io.outReadData))
+// val groupOutDataPrev = when(psumRowAgg){psumSplitData}.otherwise{ RegEnable(groupOutData, state === sCombine)}
 val groupOutDataPrev = RegEnable(groupOutData, state === sCombine)
 val aggWithPrevGroup = ((currRowInGroup_q === 0.U) && isVR)
 val outDataAgg = groupOutData.map(_.data).zip(groupOutDataPrev.map(_.data)).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
+val outDataPsumAgg = groupOutData.map(_.data).zip(psumSplitData).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
 val outDataNoAgg = groupOutData.map(_.data).reverse.reduce(Cat(_,_))
-val outData = Mux(aggWithPrevGroup, outDataAgg, outDataNoAgg)
+val outData = Mux(aggWithPrevGroup, outDataAgg, Mux(psumRowAgg, outDataPsumAgg, outDataNoAgg))
 val outRowCount_q = RegInit(0.U(32.W))
 val outvRCount_q = RegInit(0.U(32.W))
 val outvRCount = Mux(state === sCombineGroup, outvRCount_q + isVR.asUInt, outvRCount_q)
@@ -220,6 +233,7 @@ vRTableReadGroup := Mux(((state === sCombine) || (state === sCombineGroup)) && (
 io.spOutWrite.bits.addr := outWriteAddr
 io.spOutWrite.bits.data := outData
 io.spOutWrite.valid := outWriteEn
+
 
 // group io
   for(i <- 0 until cp.nGroups){

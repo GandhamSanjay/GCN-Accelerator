@@ -21,7 +21,7 @@ trait ISAConstants {
   val C_SRAM_OFFSET_BITS = 32
   val C_XSIZE_BITS = 32
   val C_YSIZE_BITS = 32
-
+  val C_PSUM_BITS = 1
   val Y = true.B
   val N = false.B
 
@@ -48,6 +48,7 @@ object ISA {
   val C_SRAM_OFFSET_BITS = 32
   val C_XSIZE_BITS = 32
   val C_YSIZE_BITS = 32
+  val C_PSUM_BITS = 1
   val Y = true.B
   val N = false.B
   val OP_L = 0.asUInt(OP_BITS.W)
