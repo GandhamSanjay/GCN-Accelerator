@@ -78,7 +78,7 @@ class BankedScratchpad(scratchType: String = "Col")(implicit p: Parameters)exten
   }
 
   when(io.writeEn){
-  val writeIdx = waddr >> log2Ceil(mp.dataBits/8)
+  val writeIdx = waddr >> log2Ceil(cp.bankBlockSize/8)
     for (i <- 0 until (nBanks)){
       ram(i).write(writeIdx, wdata((i+1)*blockSize - 1, i*blockSize))
     }
@@ -213,7 +213,7 @@ class OutputScratchpad(scratchType: String = "Out", debug: Boolean = false)(impl
   val cp = p(AccKey).coreParams
 
     // Scratch size params
-  val blockSize = cp.blockSize
+  val blockSize = (cp.blockSize * cp.nColInDense)
   val scratchSize = cp.scratchSizeMap(scratchType)/mp.dataBits
   val nBanks = mp.dataBits/blockSize
   

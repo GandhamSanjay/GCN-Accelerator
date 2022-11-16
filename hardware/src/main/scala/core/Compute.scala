@@ -32,6 +32,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val inst = Flipped(Decoupled(UInt(INST_BITS.W)))
     val gbReadCmd = Output(new SPReadCmd)
     val gbReadData = Input(new SPReadData(scratchType = "Global"))
+    val spOutWrite = Decoupled(new SPWriteCmd)
     val valid = Input(Bool())
     val done = Output(Bool())
   })
@@ -42,19 +43,22 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
   val dec = Module(new ComputeDecode)
   val vRTable = SyncReadMem(cp.nGroups, new VRTableEntry)
+  val vRTableReadGroup_q = RegInit(0.U(log2Ceil(cp.nGroups).W))
+  val vRTableReadGroup = Wire(chiselTypeOf(vRTableReadGroup_q))
+  val vRTableReadData = vRTable.read(vRTableReadGroup, true.B)
   val groupArray = for(i <- 0 until cp.nGroups) yield {
     Module(new Group(groupID = i))
   }
 
-// val vrArbiter = Module(new Arbiter(new VRTableEntryWithGroup, cp.nGroups))
-// vrArbiter.io.out.ready := true.B
-// when(vrArbiter.io.out.valid){
-  // vRTable.write(vrArbiter.io.out.bits.group,vrArbiter.io.out.bits.VRTableEntry)
-// }
+val vrArbiter = Module(new Arbiter(new VRTableEntryWithGroup, cp.nGroups))
+vrArbiter.io.out.ready := true.B
+when(vrArbiter.io.out.valid){
+  vRTable.write(vrArbiter.io.out.bits.group,vrArbiter.io.out.bits.VRTableEntry)
+}
 
 
 // state machine
-  val sIdle :: sDataMoveRow :: sDataMoveRowGroup :: sDataMoveCol :: sDataMoveVal :: sDataMoveDen ::sCompute :: sWait :: sDone :: Nil = Enum(9)
+  val sIdle :: sDataMoveRow :: sDataMoveCol :: sDataMoveVal :: sDataMoveDen ::sCompute :: sCombineGroup :: sCombine :: sDone :: Nil = Enum(9)
   val state = RegInit(sIdle)
   val start = inst_q.io.deq.fire
   val inst = RegEnable(inst_q.io.deq.bits, start)
@@ -141,14 +145,90 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     }
   }
 
+// group select
+  when((((state === sDataMoveRow) && rowPtrFin)||(state === sDataMoveCol) && colFin)||((state === sDataMoveVal) && valFin)){
+    when(groupEnd){
+      groupSel := 0.U
+      nRowWritten_q := 0.U
+    }.otherwise{
+      groupSel := groupSel + 1.U
+      nRowWritten_q := 0.U
+    }
+  }.elsewhen((state === sDataMoveRow)){
+    nRowWritten_q := nRowWritten
+  }
+  nRowWrittenValid := ((state === sDataMoveRow) && rowPtrFin)
+  
+  io.gbReadCmd.addr := MuxLookup(true.B,
+      rowPtrReadAddr, // default
+      Array(
+        ((state === sIdle) && start)-> rowPtrReadAddr,
+        ((state === sDataMoveRow) && (!(rowPtrFin && groupEnd))) -> rowPtrReadAddr,
+        ((state === sDataMoveRow) && (rowPtrFin && groupEnd)) -> colReadAddr,
+        ((state === sDataMoveCol) && !(colFin && groupEnd)) -> colReadAddr,
+        ((state === sDataMoveCol) && (colFin && groupEnd)) -> valReadAddr,
+        ((state === sDataMoveVal) && !(valFin && groupEnd)) -> valReadAddr,
+        ((state === sDataMoveVal) && (valFin && groupEnd)) -> denReadAddr,
+        ((state === sDataMoveDen)) -> denReadAddr
+      ))
+
+// Partial outputs aggregate 
+val aggDone = vRTableReadGroup_q === (cp.nGroups - 1).U
+val currRowInGroup_q = RegInit(0.U(32.W))
+val currRowInGroup = Wire(chiselTypeOf(currRowInGroup_q))
+dontTouch(currRowInGroup_q)
+val nRowInGroup = vRTableReadData.nRows
+val isVR = vRTableReadData.isVRWithPrevGroup
+val groupOutAddr = currRowInGroup << log2Ceil((cp.blockSize * cp.nColInDense)/8)
+val groupOutData = Wire(chiselTypeOf(groupArray(0).io.outReadData))
+val groupOutDataPrev = RegEnable(groupOutData, state === sCombine)
+val aggWithPrevGroup = ((currRowInGroup_q === 0.U) && isVR)
+val outDataAgg = groupOutData.map(_.data).zip(groupOutDataPrev.map(_.data)).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
+val outDataNoAgg = groupOutData.map(_.data).reverse.reduce(Cat(_,_))
+val outData = Mux(aggWithPrevGroup, outDataAgg, outDataNoAgg)
+val outRowCount_q = RegInit(0.U(32.W))
+val outvRCount_q = RegInit(0.U(32.W))
+val outvRCount = Mux(state === sCombineGroup, outvRCount_q + isVR.asUInt, outvRCount_q)
+when(state === sCombineGroup){
+  outvRCount_q := outvRCount 
+}
+when(state === sCombine){
+  outRowCount_q := outRowCount_q + 1.U
+}
+val outWriteAddr = (outRowCount_q - outvRCount) << log2Ceil((cp.blockSize * cp.nColInDense)/8)
+currRowInGroup := Mux(state === sCombine, currRowInGroup_q + 1.U, currRowInGroup_q)
+val outWriteEn = state === sCombine
+when((state === sCompute)){
+  vRTableReadGroup_q := 0.U
+}.elsewhen(((state === sCombine) || (state === sCombineGroup)) && (currRowInGroup === nRowInGroup)){
+  vRTableReadGroup_q := vRTableReadGroup_q + 1.U
+}
+
+when(state === sCombine){
+  when(currRowInGroup === (nRowInGroup)){
+    currRowInGroup_q := 0.U
+  }.otherwise{
+    currRowInGroup_q := currRowInGroup
+  }
+}
+ 
+
+vRTableReadGroup := Mux(((state === sCombine) || (state === sCombineGroup)) && (currRowInGroup === nRowInGroup),vRTableReadGroup_q + 1.U,vRTableReadGroup_q)
+
+io.spOutWrite.bits.addr := outWriteAddr
+io.spOutWrite.bits.data := outData
+io.spOutWrite.valid := outWriteEn
+
 // group io
   for(i <- 0 until cp.nGroups){
+    groupArray(i).io.outReadCmd.map(_.addr := groupOutAddr)
+    groupOutData := MuxTree(vRTableReadGroup_q, groupArray.map(_.io.outReadData))
     groupArray(i).io.nRowPtrInGroup.bits := nRowWritten
     groupArray(i).io.nRowPtrInGroup.valid := (nRowWrittenValid && groupSel === i.U)
-    // vrArbiter.io.in(i).bits.VRTableEntry := groupArray(i).io.vrEntry.bits
-    // vrArbiter.io.in(i).bits.group := i.U
-    // vrArbiter.io.in(i).valid := groupArray(i).io.vrEntry.valid
-    // vrArbiter.io.in(i).ready <> groupArray(i).io.vrEntry.ready
+    vrArbiter.io.in(i).bits.VRTableEntry := groupArray(i).io.vrEntry.bits
+    vrArbiter.io.in(i).bits.group := i.U
+    vrArbiter.io.in(i).valid := groupArray(i).io.vrEntry.valid
+    vrArbiter.io.in(i).ready <> groupArray(i).io.vrEntry.ready
     groupArray(i).io.nNonZero.bits := nNonZeroPerGroup
     groupArray(i).io.nNonZero.valid := start
     groupArray(i).io.start := (state === sCompute)
@@ -157,7 +237,6 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
       0.U, // default
       Array(
         sDataMoveVal -> 0.U,
-        sDataMoveRowGroup -> 2.U,
         sDataMoveRow -> 2.U,
         sDataMoveCol -> 3.U,
         sDataMoveDen -> 1.U
@@ -166,7 +245,6 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
       MuxLookup(state,
       0.U, // default
       Array(
-        sDataMoveRowGroup -> rowPtrWriteAddr,
         sDataMoveRow -> rowPtrWriteAddr,
         sDataMoveCol -> colWriteAddr,
         sDataMoveVal -> valWriteAddr,
@@ -201,33 +279,6 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
       ))
   }
   val computeDone = groupArray.map(_.io.done).reduce(_&&_)
-
-// group select
-  when((((state === sDataMoveRow) && rowPtrFin)||(state === sDataMoveCol) && colFin)||((state === sDataMoveVal) && valFin)){
-    when(groupEnd){
-      groupSel := 0.U
-      nRowWritten_q := 0.U
-    }.otherwise{
-      groupSel := groupSel + 1.U
-      nRowWritten_q := 0.U
-    }
-  }.elsewhen((state === sDataMoveRow)){
-    nRowWritten_q := nRowWritten
-  }
-  nRowWrittenValid := ((state === sDataMoveRow) && rowPtrFin)
-  
-  io.gbReadCmd.addr := MuxLookup(true.B,
-      rowPtrReadAddr, // default
-      Array(
-        ((state === sIdle) && start)-> rowPtrReadAddr,
-        ((state === sDataMoveRow) && (!(rowPtrFin && groupEnd))) -> rowPtrReadAddr,
-        ((state === sDataMoveRow) && (rowPtrFin && groupEnd)) -> colReadAddr,
-        ((state === sDataMoveCol) && !(colFin && groupEnd)) -> colReadAddr,
-        ((state === sDataMoveCol) && (colFin && groupEnd)) -> valReadAddr,
-        ((state === sDataMoveVal) && !(valFin && groupEnd)) -> valReadAddr,
-        ((state === sDataMoveVal) && (valFin && groupEnd)) -> denReadAddr,
-        ((state === sDataMoveDen)) -> denReadAddr
-      ))
 
 //state machine
   switch(state){
@@ -278,7 +329,23 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     }
     is(sCompute){
       when(computeDone){
-        state := sIdle
+        state := sCombineGroup
+      }
+    }
+    is(sCombineGroup){
+      when(nRowInGroup === 0.U){
+        state := sCombineGroup
+      }.otherwise{
+        state := sCombine
+      }
+    }
+    is(sCombine){
+      when(currRowInGroup_q === (nRowInGroup - 1.U)){
+        when(aggDone){
+          state := sIdle
+        }.otherwise{
+          state := sCombineGroup
+        }
       }
     }
   }

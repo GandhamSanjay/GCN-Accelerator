@@ -23,6 +23,7 @@ class Core(implicit p: Parameters) extends Module {
   val fetch = Module(new Fetch)
   val load = Module(new Load)
   val globalBuffer = Module(new GlobalBuffer())
+  val outputScratchpad = Module(new OutputScratchpad())
   val compute = Module(new Compute)
   // val store = Module(new Store)
   // val spOut = Module(new OutputScratchpad(scratchType = "Out"))
@@ -33,7 +34,10 @@ class Core(implicit p: Parameters) extends Module {
   globalBuffer.io.writeEn := load.io.spWrite.fire
   globalBuffer.io.spReadCmd <> compute.io.gbReadCmd
   globalBuffer.io.spReadData <> compute.io.gbReadData
-
+  compute.io.spOutWrite.bits <> outputScratchpad.io.spWrite
+  compute.io.spOutWrite.ready := true.B
+  outputScratchpad.io.writeEn := compute.io.spOutWrite.valid
+  outputScratchpad.io.spReadCmd.addr := 0.U
   io.cr.ecnt(0) := 0.U
   // io.cr.ecnt(0) <> load.io.ecnt
   // io.cr.ecnt(1) <> compute.io.ecnt(0)

@@ -38,9 +38,9 @@ case class CoreParams(
   val globalBufferSize: Int = 1024*8*1024,
   val nColInDense: Int = 2,
   val blockSize: Int = 32,
-  val nPE: Int = 2,
   val nGroups: Int = 2
 ) {
+  val nPE: Int = nColInDense
   val bankBlockSize: Int = nColInDense * blockSize
   private val ScratchPadMap: HashMap[String, Int] =
     HashMap(("CSR", 5), ("None", 2))

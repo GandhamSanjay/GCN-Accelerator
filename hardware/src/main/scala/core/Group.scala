@@ -25,7 +25,9 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     val spWrite = Flipped(Decoupled(new SPWriteCmdWithSel))
     val mask = Input(UInt((nBanks).W))
     val nNonZero = Flipped(ValidIO(UInt(32.W)))
-    // val vrEntry = Decoupled(new VRTableEntry)
+    val vrEntry = Decoupled(new VRTableEntry)
+    val outReadCmd = Input(Vec(cp.nColInDense, new SPReadCmd))
+    val outReadData = Output(Vec(cp.nColInDense, new SPReadData))
     val start = Input(Bool())
     val done = Output(Bool())
   })
@@ -42,19 +44,15 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   }
   val numRows_q = Reg(UInt(cp.blockSize.W))
   val d1_rowPtrAddr = Wire(UInt(32.W))
-  // val decompressDone = Wire(Bool())
-  // val vrQueue = Module(new Queue(new VRTableEntryWithGroup, 1)) 
-  // vrQueue.io.enq.valid := decompressDone
-  // vrQueue.io.enq.bits.VRTableEntry.isVRWithPrevGroup := isVRwithPrevGroup_q
-  // vrQueue.io.enq.bits.VRTableEntry.nRows := numRows_q
-  // vrQueue.io.enq.bits.group := groupID.U
+  val vrQueue = Module(new Queue(new VRTableEntry, 1)) 
+  vrQueue.io.deq <> io.vrEntry
   
   // ScratchPads
   val spVal = Module(new Scratchpad(scratchType = "Val", masked = true))
   val spCol = Module(new Scratchpad(scratchType = "Col", masked = true))
   val spPtr = Module(new Scratchpad(scratchType = "Ptr", masked = true))
   val spDen = Module(new BankedScratchpad(scratchType = "Den"))
-  // val spOut = Module(new Scratchpad(scratchType = "Out", masked = false))
+  val spOut = Module(new BankedScratchpad(scratchType = "Out"))
 
   io.spWrite.bits.spWriteCmd <> spVal.io.spWrite
   io.spWrite.bits.spWriteCmd <> spCol.io.spWrite
@@ -67,9 +65,6 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   spCol.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 3.U)
 
   spVal.io.spReadCmd.addr := io.spWrite.bits.spWriteCmd.addr
-  spDen.io.spReadCmd.foreach{
-    _.addr := 0.U
-  }
   spPtr.io.spReadCmd.addr := d1_rowPtrAddr
   spPtr.io.mask.get := io.mask
   spCol.io.spReadCmd.addr := io.spWrite.bits.spWriteCmd.addr
@@ -77,7 +72,6 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   spVal.io.mask.get := io.mask
 
   val blockSizeBytes = (cp.blockSize/8)
-  io.done := false.B
 
   /* Pipeline Stage: D1
   Cycles = 2
@@ -130,7 +124,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
           d1_reqValid_q := true.B
         }.otherwise{
           when(isVR){
-            d1_rowPtr1Data_q := rowPtrBegin
+            d1_rowPtr1Data_q := rowPtrBegin - rowPtrBegin
             d1_rowPtr2Data_q := spPtr.io.spReadData.data - rowPtrBegin
             d1_reqValid_q := true.B
             d1_state_q := sRowPtr1
@@ -149,26 +143,37 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     }
     is(sRowPtr2){
       when(rowPtrDone){
-        when(d1_rowPtr2Data_q =/= rowPtrEnd){
+        when(d1_rowPtr2Data_q =/= (rowPtrEnd - rowPtrBegin)){
           d1_rowPtr1Data_q := d1_rowPtr2Data_q
-          d1_rowPtr2Data_q := rowPtrEnd
+          d1_rowPtr2Data_q := rowPtrEnd - rowPtrBegin
         }.otherwise{
           d1_state_q := sIdle
           d1_reqValid_q := false.B
         }
       }.otherwise{
+        when(d1_statePrev_q === d1_state_q){
+          d1_rowPtr1Data_q := d1_rowPtr2Data_q
+        }
         d1_rowPtr2Data_q := spPtr.io.spReadData.data - rowPtrBegin
         d1_reqValid_q := true.B
-        d1_rowPtr1Data_q := d1_rowPtr2Data_q 
         d1_state_q := sRowPtr2
       }
     }
   }
 
+  val d1_numRow_q = RegInit(0.U(32.W))
+  when(d1Queue.io.enq.fire){
+    d1_numRow_q := d1_numRow_q + 1.U
+  }
+  val d1_numRow = Mux(d1Queue.io.enq.fire, d1_numRow_q + 1.U, d1_numRow_q)
+
   spPtr.io.spReadCmd.addr  := Mux(d1_state_q === sIdle, d1_rowPtrAddr_q, d1_rowPtrAddr)
-  val d1_valid = d1Queue.io.deq.valid
   val d1_currRowPtr = d1Queue.io.deq.bits.rowPtr1Data
   val d1_currDenCol = 0.U(cp.blockSize.W)
+  val decompressDone = ((d1_state_q === sIdle) && ((d1_statePrev_q === sRowPtr2) || (pulse) && rowPtrSize === 0.U))
+  vrQueue.io.enq.valid := decompressDone
+  vrQueue.io.enq.bits.isVRWithPrevGroup := isVR_q
+  vrQueue.io.enq.bits.nRows := d1_numRow
 
   /* Pipeline Stage: D2
   Cycles = 1
@@ -181,38 +186,35 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   Output:
     1. colIdx and peReq goes to DR.
   */
+  val d2_rowNum_q = RegInit(0.U(M_SRAM_OFFSET_BITS.W))
+  when(d1Queue.io.deq.fire){
+    d2_rowNum_q := d2_rowNum_q + 1.U
+  }
   val d2_nextValid = Wire(Bool())
   val d2_nextValid_q = RegInit(false.B)
   val d2_nextRowPtr_q = Reg(chiselTypeOf(d1_currRowPtr))
-  val d2_nextDenCol_q = Reg(chiselTypeOf(d1_currDenCol))
-  val d2_valid_q = RegInit(false.B)
+  val d2_valid = WireDefault(false.B)
   val d2_rowPtr1Data_q = RegInit(0.U(cp.blockSize.W))
   val d2_rowPtr2Data_q = RegInit(0.U(cp.blockSize.W))
   val d2_currRowPtr_q = RegInit(0.U(cp.blockSize.W))
-  val d2_currDenCol_q = RegInit(0.U(cp.blockSize.W))
   val d2_currRowPtr = Mux(d2_nextValid_q, d2_nextRowPtr_q, d1_currRowPtr)
-  val d2_currDenCol = Mux(d2_nextValid_q, d2_nextDenCol_q, d1_currDenCol)
   val d2_rowPtr1Data = Mux(d2_nextValid_q, d2_rowPtr1Data_q, d1Queue.io.deq.bits.rowPtr1Data)
   val d2_rowPtr2Data = Mux(d2_nextValid_q, d2_rowPtr2Data_q, d1Queue.io.deq.bits.rowPtr2Data)
   val d2_endOfRow_q = RegInit(false.B)
-  val d2_endOfCol_q = RegInit(false.B)
   val d2_isNewOutput_q = RegNext(d2_currRowPtr === d2_rowPtr1Data)
   d1Queue.io.deq.ready := !d2_nextValid
-  d2_valid_q := d2_nextValid || d1_valid
-  
+  val d1_valid = d1Queue.io.deq.valid
+  d2_valid := d2_nextValid_q || (d1Queue.io.deq.valid && !d2_nextValid_q)
   d2_rowPtr1Data_q := d2_rowPtr1Data
   d2_rowPtr2Data_q := d2_rowPtr2Data
   d2_currRowPtr_q := d2_currRowPtr
-  d2_currDenCol_q := d2_currDenCol
   spCol.io.spReadCmd.addr := (d2_currRowPtr << log2Ceil(blockSizeBytes))
-  val d2_endOfCol = true.B
-  val d2_endOfRow = (d2_currRowPtr === d2_rowPtr2Data - 1.U)
+  val d2_endOfRow = (d2_currRowPtr === (d2_rowPtr2Data - 1.U))
+  val d2_emptyRow = (d2_currRowPtr === d2_rowPtr2Data)
   d2_endOfRow_q := d2_endOfRow
-  d2_endOfCol_q := d2_endOfCol
-  val d2_endOfColRow = d2_endOfCol && d2_endOfRow
-  d2_nextDenCol_q := Mux(d2_endOfRow, d2_currDenCol + 1.U, d2_currDenCol)
+  val d2_emptyRow_q = RegNext(d2_emptyRow)
   d2_nextRowPtr_q := Mux(d2_endOfRow, d2_rowPtr1Data , d2_currRowPtr + 1.U)
-  d2_nextValid := !d2_endOfColRow && d2_valid_q
+  d2_nextValid := !d2_endOfRow && d2_valid && !d2_emptyRow
   d2_nextValid_q := d2_nextValid
 
   /* Pipeline Stage: DR (DataRead)
@@ -226,13 +228,41 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   Output:
     1. RowPtrData1, RowPtrData2 and goes to D2.
   */
-  val dr_valid_q = RegNext(d2_valid_q)
+  val dr_valid_q = RegNext(d2_valid)
+  val dr_rowNum_q = RegEnable(d2_rowNum_q, dr_valid_q)
   val dr_colIdx = spCol.io.spReadData.data
-  val dr_currDenCol_q = RegEnable(d2_currDenCol_q, dr_valid_q)
   val dr_outWrite_q = RegEnable(d2_endOfRow_q, dr_valid_q)
+  val dr_outWriteEmptyRow_q = RegEnable(d2_emptyRow_q, dr_valid_q)
   val dr_isNewOutput_q = RegEnable(d2_isNewOutput_q, dr_valid_q)
   spVal.io.spReadCmd.addr := (d2_currRowPtr_q << log2Ceil(blockSizeBytes))
-  // spDen.io.spReadCmd.addr := (dr_colIdx << log2Ceil(blockSizeBytes)) << Log2(io.denXSize) + (d2_currDenCol_q << log2Ceil(blockSizeBytes))
+  val dr_denCol  = RegInit(VecInit(Seq.tabulate(cp.nPE)(n => n.U(M_SRAM_OFFSET_BITS.W)))) 
+  for( i<-0 until cp.nPE){
+    spDen.io.spReadCmd(i).addr := ((dr_colIdx << log2Ceil(blockSizeBytes)) << log2Ceil(cp.nColInDense)) + (dr_denCol(i) << log2Ceil(blockSizeBytes))
+  }
   assert(dr_colIdx =/= 19.U)
 
+    /* Pipeline Stage: M (MAC)
+  Cycles = 1
+  */
+  val m_isNewRow = dr_isNewOutput_q
+  val m_acc_q = RegInit(VecInit(Seq.fill(cp.nColInDense)(0.U(cp.blockSize.W)))) 
+  val m_valid_q = RegNext(dr_valid_q)
+  val m_dense = spDen.io.spReadData.map(_.data)
+  val m_sparse = spVal.io.spReadData.data
+  val m_multiply = m_dense.map(_*m_sparse)
+  val m_mac = m_multiply.zip(m_acc_q).map{case(x,y) => (Mux(dr_isNewOutput_q, x, x+y))}
+  val m_outWrite = dr_outWrite_q || dr_outWriteEmptyRow_q
+  spOut.io.spWrite.data := Mux(dr_outWriteEmptyRow_q, 0.U, m_mac.map(_(cp.blockSize-1, 0)).reverse.reduce(Cat(_,_)))
+  spOut.io.writeEn := m_outWrite && m_valid_q
+  spOut.io.spWrite.addr := (((dr_rowNum_q - 1.U) << log2Ceil(cp.blockSize/8))) << log2Ceil(cp.nColInDense)
+  when(m_valid_q){
+    m_acc_q.zip(m_mac).map{case(x_q, x) => x_q := x}
+  }.otherwise{
+    m_acc_q.map{case(x_q) => x_q := x_q}
+  }
+
+  spOut.io.spReadCmd <> io.outReadCmd
+  spOut.io.spReadData <> io.outReadData
+  val pipeEmpty = (d1_state_q === sIdle) && (d1Queue.io.count === 0.U) && (!d2_valid) && (!dr_valid_q) && (!m_valid_q)
+  io.done := !pulse && pipeEmpty
 }
