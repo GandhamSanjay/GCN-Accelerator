@@ -1,56 +1,41 @@
 [*]
 [*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
-[*] Wed Nov 16 00:57:37 2022
+[*] Wed Nov 16 18:01:07 2022
 [*]
 [dumpfile] "/home/sanjay/research/GCN-Accelerator/test/Wrapper.vcd"
-[dumpfile_mtime] "Wed Nov 16 00:57:25 2022"
-[dumpfile_size] 359187
+[dumpfile_mtime] "Wed Nov 16 18:01:03 2022"
+[dumpfile_size] 415486
 [savefile] "/home/sanjay/research/GCN-Accelerator/test/ComputeDebugOnePE.gtkw"
-[timestart] 293050
-[size] 1920 1043
-[pos] 1797 -78
-*-14.000000 322130 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[timestart] 183700
+[size] 1848 1136
+[pos] -51 -51
+*-15.000000 268000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] Wrapper.
 [treeopen] Wrapper.core.
-[treeopen] Wrapper.core.compute.
-[sst_width] 482
-[signals_width] 604
+[sst_width] 382
+[signals_width] 396
 [sst_expanded] 1
-[sst_vpaned_height] 631
+[sst_vpaned_height] 331
 @22
-Wrapper.core.compute.state[3:0]
+Wrapper.core.load.io_spWrite_bits_addr[31:0]
+Wrapper.core.load.io_spWrite_bits_data[511:0]
 @28
-Wrapper.core.compute.computeDone
-Wrapper.core.compute.vRTable_nRows_vRTableReadData_addr
+Wrapper.core.load.io_spWrite_ready
+Wrapper.core.load.io_spWrite_valid
+Wrapper.core.load.state[2:0]
 @22
-Wrapper.core.compute.vRTable_nRows_vRTableReadData_data[31:0]
+Wrapper.core.load.io_me_rd_cmd_bits_addr[31:0]
+Wrapper.core.load.io_me_rd_cmd_bits_len[7:0]
 @28
-Wrapper.core.compute.vRTable_nRows_vRTableReadData_en
-Wrapper.core.compute.vRTable_isVRWithPrevGroup_vRTableReadData_addr
-Wrapper.core.compute.vRTable_isVRWithPrevGroup_vRTableReadData_data
-Wrapper.core.compute.vRTable_isVRWithPrevGroup_vRTableReadData_en
+Wrapper.core.load.io_me_rd_cmd_ready
+Wrapper.core.load.io_me_rd_cmd_valid
 @22
-Wrapper.core.compute.currRowInGroup[31:0]
-Wrapper.core.compute.currRowInGroup_q[31:0]
+Wrapper.core.load.io_me_rd_data_bits_data[511:0]
 @28
-Wrapper.core.compute.io_spOutWrite_valid
-@22
-Wrapper.core.compute.io_spOutWrite_bits_data[63:0]
-Wrapper.core.compute.io_spOutWrite_bits_addr[31:0]
-Wrapper.core.compute.outDataAgg[63:0]
-Wrapper.core.compute.outDataNoAgg[63:0]
-Wrapper.core.compute.groupOutAddr[34:0]
-Wrapper.core.compute.groupOutDataPrev_0_data[31:0]
-Wrapper.core.compute.groupOutDataPrev_1_data[31:0]
-Wrapper.core.compute.groupOutData_0_data[31:0]
-Wrapper.core.compute.groupOutData_1_data[31:0]
+Wrapper.core.load.io_me_rd_data_valid
+@29
+Wrapper.core.load.data_q_io_enq_valid
 @28
-Wrapper.core.compute.aggWithPrevGroup
-@22
-Wrapper.core.compute.outWriteAddr[34:0]
-@28
-Wrapper.core.compute.vRTableReadGroup_q
-@23
-Wrapper.core.compute.outvRCount[31:0]
+Wrapper.core.load.data_q_io_enq_ready
 [pattern_trace] 1
 [pattern_trace] 0

@@ -22,6 +22,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
     val valid = Input(Bool())
     val done = Output(Bool())
     val spWrite = Decoupled(new SPWriteCmd(scratchType = "Global"))
+    val psumWrite = Decoupled(new SPWriteCmd(scratchType = "Global"))
     val ecnt = Output(UInt(regBits.W))
   })
   // Module instantiation
@@ -95,8 +96,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
         saddr := saddr + (mp.dataBits/8).U
           when(rlenRem === 0.U){
             when(transferRem === 0.U){
-              done := true.B
-              state := sIdle
+              state := sDelay
             }.otherwise{
               state := sSeqCmd
               raddr := raddr + transferMaxSizeBytes.U
@@ -120,11 +120,9 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
       state := sIdle
     }
     is(sDelay){
-      when(delayCtr === 0.U){
+      when(data_q.io.count === 0.U){
         done := true.B
         state := sIdle
-      }.otherwise{
-        delayCtr := delayCtr + 1.U
       }
     }
   }
@@ -137,7 +135,10 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   // data queue
   data_q.io.enq.bits.data := io.me_rd.data.bits.data
   data_q.io.enq.bits.addr := saddr
-  data_q.io.enq.valid := (state === sSeqReadData) && io.me_rd.data.valid
+  data_q.io.enq.valid := (state === sSeqReadData) && io.me_rd.data.valid && !dec.io.isPsum
+  io.psumWrite.bits.data := io.me_rd.data.bits.data
+  io.psumWrite.bits.addr := saddr
+  io.psumWrite.valid := (state === sSeqReadData) && io.me_rd.data.valid && dec.io.isPsum
   
   // dram read
   io.me_rd.cmd.bits.len := rlen

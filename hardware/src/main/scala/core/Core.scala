@@ -29,8 +29,13 @@ class Core(implicit p: Parameters) extends Module {
   val store = Module(new Store)
   val start = Wire(Bool())
 
-  globalBuffer.io.spWrite <> load.io.spWrite.bits
+  psumScratchpad.io.spWrite <> load.io.psumWrite.bits
+  psumScratchpad.io.writeEn := load.io.psumWrite.fire
+  psumScratchpad.io.spReadCmd <> compute.io.psumReadCmd
+  psumScratchpad.io.spReadData <> compute.io.psumReadData
   load.io.spWrite.ready := true.B
+  load.io.psumWrite.ready := true.B
+  globalBuffer.io.spWrite <> load.io.spWrite.bits
   globalBuffer.io.writeEn := load.io.spWrite.fire
   globalBuffer.io.spReadCmd <> compute.io.gbReadCmd
   globalBuffer.io.spReadData <> compute.io.gbReadData
@@ -84,7 +89,7 @@ class Core(implicit p: Parameters) extends Module {
     }
     is(sLoad){
       when(load.io.done){
-        when(ctr === 4.U){
+        when(ctr === 5.U){
           state := sCompute
         }.otherwise{
           state := sLoad

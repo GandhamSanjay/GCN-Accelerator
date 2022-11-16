@@ -33,6 +33,8 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val gbReadCmd = Output(new SPReadCmd)
     val gbReadData = Input(new SPReadData(scratchType = "Global"))
     val spOutWrite = Decoupled(new SPWriteCmd)
+    val psumReadCmd = Output(new SPReadCmd)
+    val psumReadData = Input(new SPReadData(scratchType = "Global"))
     val valid = Input(Bool())
     val done = Output(Bool())
   })
