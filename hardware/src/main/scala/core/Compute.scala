@@ -37,7 +37,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val done = Output(Bool())
   })
   val bankBlockSizeBytes = cp.bankBlockSize/8
-  io.done := false.B
+
 
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
@@ -278,7 +278,8 @@ io.spOutWrite.valid := outWriteEn
         sDataMoveDen -> ((cp.nColInDense.U << 1.U) - 1.U)
       ))
   }
-  val computeDone = groupArray.map(_.io.done).reduce(_&&_)
+val computeDone = groupArray.map(_.io.done).reduce(_&&_)
+io.done := (state === sIdle) && !start
 
 //state machine
   switch(state){

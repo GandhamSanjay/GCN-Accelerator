@@ -25,8 +25,7 @@ class Core(implicit p: Parameters) extends Module {
   val globalBuffer = Module(new GlobalBuffer())
   val outputScratchpad = Module(new OutputScratchpad())
   val compute = Module(new Compute)
-  // val store = Module(new Store)
-  // val spOut = Module(new OutputScratchpad(scratchType = "Out"))
+  val store = Module(new Store)
   val start = Wire(Bool())
 
   globalBuffer.io.spWrite <> load.io.spWrite.bits
@@ -37,7 +36,6 @@ class Core(implicit p: Parameters) extends Module {
   compute.io.spOutWrite.bits <> outputScratchpad.io.spWrite
   compute.io.spOutWrite.ready := true.B
   outputScratchpad.io.writeEn := compute.io.spOutWrite.valid
-  outputScratchpad.io.spReadCmd.addr := 0.U
   io.cr.ecnt(0) := 0.U
   // io.cr.ecnt(0) <> load.io.ecnt
   // io.cr.ecnt(1) <> compute.io.ecnt(0)
@@ -53,9 +51,9 @@ class Core(implicit p: Parameters) extends Module {
   val sIdle :: sLoad :: sCompute :: sStore :: sFinish :: Nil = Enum(5)
   val state = RegInit(sIdle)
   val ctr = RegInit(0.U(4.W))
-  compute.io.valid := (state === sCompute) && !compute.io.done
+  compute.io.valid := (state === sCompute)
   load.io.valid := (state === sLoad) && !load.io.done
-  // store.io.valid := (state === sStore) && !store.io.done
+  store.io.valid := (state === sStore) && !store.io.done
 
   // Fetch instructions (tasks) from memory (DRAM) into queues (SRAMs)
   fetch.io.launch := io.cr.launch
@@ -65,19 +63,16 @@ class Core(implicit p: Parameters) extends Module {
   // Load inputs and weights from memory (DRAM) into scratchpads (SRAMs)
   load.io.inst <> fetch.io.inst.ld
   compute.io.inst <> fetch.io.inst.co
-  // store.io.inst <> fetch.io.inst.st
+  store.io.inst <> fetch.io.inst.st
+  store.io.spReadCmd <> outputScratchpad.io.spReadCmd
+  store.io.spReadData <> outputScratchpad.io.spReadData
 
   // Read(rd) and write(wr) from/to memory (i.e. DRAM)
   io.cr.finish := (state === sFinish)
   io.me.rd(0) <> fetch.io.me_rd
   io.me.rd(1) <> load.io.me_rd
-  io.me.wr(0).cmd.bits.addr := 0.U
-  io.me.wr(0).cmd.bits.len := 0.U
-  io.me.wr(0).cmd.bits.tag := 0.U
-  io.me.wr(0).cmd.valid := 0.U
-  io.me.wr(0).data.valid := 0.U
-  io.me.wr(0).data.bits.data := 0.U
-  io.me.wr(0).data.bits.strb := 0.U
+  io.me.wr(0) <> store.io.me_wr
+
 
   switch(state){
     is(sIdle){
@@ -98,15 +93,15 @@ class Core(implicit p: Parameters) extends Module {
     }
     is(sCompute){
       when(compute.io.done){
-        state := sFinish
+        state := sStore
         ctr := 0.U
       }
     }
-    // is(sStore){
-    //   when(store.io.done){
-    //     state := sFinish
-    //   }
-    // }
+    is(sStore){
+      when(store.io.done){
+        state := sFinish
+      }
+    }
     is(sFinish){
         state := sIdle
     }
