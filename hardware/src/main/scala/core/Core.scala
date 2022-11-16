@@ -24,6 +24,7 @@ class Core(implicit p: Parameters) extends Module {
   val load = Module(new Load)
   val globalBuffer = Module(new GlobalBuffer())
   val outputScratchpad = Module(new OutputScratchpad())
+  val psumScratchpad = Module(new GlobalBuffer(scratchType = "Psum"))
   val compute = Module(new Compute)
   val store = Module(new Store)
   val start = Wire(Bool())

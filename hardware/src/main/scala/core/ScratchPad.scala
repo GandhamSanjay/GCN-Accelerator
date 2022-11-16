@@ -99,13 +99,18 @@ class BankedScratchpad(scratchType: String = "Col")(implicit p: Parameters)exten
 }
 
 // Masked Writes 512 bits and reads 512 bits at a time.
-class GlobalBuffer()(implicit p: Parameters)extends Module with ISAConstants{
+class GlobalBuffer(scratchType: String = "Global")(implicit p: Parameters)extends Module with ISAConstants{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
 
     // Scratch size params
   val bankBlockSize = cp.bankBlockSize
-  val scratchSize = cp.globalBufferSize/mp.dataBits
+  var scratchSize = 0
+  if(scratchType == "Global"){
+    scratchSize = cp.globalBufferSize/mp.dataBits
+  }else{
+    scratchSize = cp.scratchSizeMap(scratchType)/mp.dataBits
+  }
   val nBanks = mp.dataBits/cp.bankBlockSize
   
   val io = IO(new Bundle {
