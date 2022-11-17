@@ -136,6 +136,8 @@ when(vrArbiter.io.out.valid){
   val denFin = (denReadBlockNum >= dec.io.denSize)
   when(state === sDataMoveDen){
     denReadBlockNum := denReadBlockNum + cp.nColInDense.U
+  }.otherwise{
+    denReadBlockNum := cp.nColInDense.U
   }
   when((state === sDataMoveDen)){
     when(denFin){

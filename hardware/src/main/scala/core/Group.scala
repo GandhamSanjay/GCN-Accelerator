@@ -105,6 +105,8 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
 
   when((d1_state_q === sRowPtr2) && !rowPtrDone){
     d1_numRowPtr_q := d1_numRowPtr_q + 2.U
+  }.elsewhen(d1_state_q === sIdle){
+    d1_numRowPtr_q := 0.U
   }
 
   when((d1_state_q === sRowPtr1) || (d1_state_q === sRowPtr2)){
