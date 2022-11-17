@@ -59,6 +59,9 @@ class Core(implicit p: Parameters) extends Module {
   fetch.io.launch := io.cr.launch
   fetch.io.ins_baddr := Cat(io.cr.vals(0),io.cr.vals(0))
   fetch.io.ins_count := io.cr.vals(1)
+  val insCountTotal = fetch.io.ins_count
+  val insCountCurr_q = RegInit(0.U(32.W))
+  val insCountCurr = Mux(state === sStore, insCountCurr_q + 6.U, insCountCurr_q)
 
   // Load inputs and weights from memory (DRAM) into scratchpads (SRAMs)
   load.io.inst <> fetch.io.inst.ld
@@ -99,11 +102,14 @@ class Core(implicit p: Parameters) extends Module {
     }
     is(sStore){
       when(store.io.done){
-        state := sFinish
+        insCountCurr_q := insCountCurr_q + 6.U
+        when(insCountCurr === insCountTotal){
+          state := sFinish
+        }.otherwise{
+          state := sLoad
+          ctr := 1.U
+        }
       }
-    }
-    is(sFinish){
-        state := sIdle
     }
   }
   load.io.spWrite.ready := true.B
