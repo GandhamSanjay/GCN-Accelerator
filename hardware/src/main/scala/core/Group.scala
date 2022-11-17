@@ -38,9 +38,14 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val nNonZero = RegEnable(io.nNonZero.bits, io.nNonZero.valid)
   val rowPtrBegin = RegInit(0.U(cp.blockSize.W))
   val rowPtrEnd = RegInit(0.U(cp.blockSize.W))
+  val totalNonZero = RegInit(0.U(cp.blockSize.W))
   when(io.nNonZero.valid){
     rowPtrBegin := rowPtrBegin + (groupID.U << Log2(io.nNonZero.bits))
     rowPtrEnd := rowPtrEnd + ((groupID + 1).U << Log2(io.nNonZero.bits))
+  }.elsewhen(io.done && !RegNext(io.done)){
+    totalNonZero := totalNonZero + io.nNonZero.bits
+    rowPtrBegin := totalNonZero + io.nNonZero.bits
+    rowPtrEnd := totalNonZero + io.nNonZero.bits
   }
   val numRows_q = Reg(UInt(cp.blockSize.W))
   val d1_rowPtrAddr = Wire(UInt(32.W))
