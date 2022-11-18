@@ -91,8 +91,8 @@ when(vrArbiter.io.out.valid){
       rowPtrWriteAddr := rowPtrWriteAddr + (cp.blockSize/8).U
     }
   }
-  val rowPtrWriteMask = UIntToOH(rowPtrIdxInBlock)
-  val rowPtrWriteEn = !rowPtrFin
+  // val rowPtrWriteMask = UIntToOH(rowPtrIdxInBlock)
+  val rowPtrWriteEn = !rowPtrFin && (state === sDataMoveRow)
   val nRowWritten_q = RegInit(0.U(32.W))
   val nRowWritten =  nRowWritten_q + !rowPtrFin
   val nRowWrittenValid = Wire(Bool())
@@ -249,6 +249,9 @@ when(prRowWrite){
     groupArray(i).io.nNonZero.bits := nNonZeroPerGroup
     groupArray(i).io.nNonZero.valid := start
     groupArray(i).io.start := (state === sCompute)
+    groupArray(i).io.ptrSpWrite.bits.addr :=  rowPtrWriteAddr
+    groupArray(i).io.ptrSpWrite.valid :=  rowPtrWriteEn && (groupSel === i.U)
+    groupArray(i).io.ptrSpWrite.bits.data := rowPtrData
     groupArray(i).io.spWrite.bits.spSel :=     
       MuxLookup(state,
       0.U, // default
@@ -271,7 +274,7 @@ when(prRowWrite){
       MuxLookup(state,
       0.U, // default
       Array(
-        sDataMoveRow -> rowPtrDataBlock.reverse.reduce(Cat(_,_)),
+        sDataMoveRow -> (rowPtrDataBlock.reverse.reduce(Cat(_,_))),
         sDataMoveCol -> io.gbReadData.data,
         sDataMoveVal -> io.gbReadData.data,
         sDataMoveDen -> io.gbReadData.data
@@ -289,7 +292,7 @@ when(prRowWrite){
       MuxLookup(state,
       0.U, // default
       Array(
-        sDataMoveRow -> rowPtrWriteMask,
+        sDataMoveRow -> ((cp.nColInDense.U << 1.U) - 1.U),
         sDataMoveCol -> ((cp.nColInDense.U << 1.U) - 1.U),
         sDataMoveVal -> ((cp.nColInDense.U << 1.U) - 1.U),
         sDataMoveDen -> ((cp.nColInDense.U << 1.U) - 1.U)

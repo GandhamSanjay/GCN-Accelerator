@@ -28,11 +28,11 @@ import ISA._
 }
 
 
-class SPWriteCmd(val scratchType: String = "Col")(implicit p: Parameters) extends Bundle{
+class SPWriteCmd(val scratchType: String = "Col", val mode: String = "multiple")(implicit p: Parameters) extends Bundle{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
   val addr = UInt(M_SRAM_OFFSET_BITS.W)
-  val data = if(scratchType == "Global"){UInt(mp.dataBits.W)}else{UInt(cp.bankBlockSize.W)}
+  val data = if(mode == "single"){UInt(cp.blockSize.W)} else if(scratchType == "Global"){UInt(mp.dataBits.W)}else{UInt(cp.bankBlockSize.W)}
 }
 
 class SPReadCmd(implicit p: Parameters) extends Bundle{
@@ -210,6 +210,48 @@ class Scratchpad(scratchType: String = "Col", masked: Boolean = false)(implicit 
   io.spReadData.data := MuxTree(bankSelPrev, rdata)
 
   assert(rdata(0) =/= 19.U)
+}
+
+class SingleScratchpad(scratchType: String = "Ptr", masked: Boolean = false)(implicit p: Parameters)extends Module with ISAConstants{
+  val mp = p(AccKey).memParams
+  val cp = p(AccKey).coreParams
+
+    // Scratch size params
+  val blockSize = cp.blockSize
+  val nBanks = 1
+  val scratchSize = cp.scratchSizeMap(scratchType)/nBanks
+  
+  
+  val io = IO(new Bundle {
+    val spWrite = Input(new SPWriteCmd(mode = "single"))
+    val spReadCmd = Input(new SPReadCmd)
+    val spReadData = Output(new SPReadData)
+    val writeEn = Input(Bool())
+    val mask = if (masked) Some(Input(UInt((nBanks).W))) else None
+  })
+
+  // Write
+  val waddr = WireDefault(io.spWrite.addr)
+  val wdata = WireDefault(io.spWrite.data)
+
+  // Read
+  val raddr = WireDefault(io.spReadCmd.addr)
+  val rdata = Wire( UInt(blockSize.W))
+
+  val ram = SyncReadMem(scratchSize, UInt(blockSize.W))
+
+  when(io.writeEn){
+    val writeIdx = waddr >> log2Ceil(mp.dataBits/8)
+    ram.write(writeIdx, wdata)
+  }
+  
+ 
+  val raddrByteAlign =  (raddr >> log2Ceil(blockSize/8))
+  val bankIdx = (raddrByteAlign)
+
+  rdata := ram.read(bankIdx, true.B)
+  io.spReadData.data := rdata
+
 }
 
 // Reads 512 bits and write 32 bits at a time 

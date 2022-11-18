@@ -23,6 +23,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val io = IO(new Bundle {
     val nRowPtrInGroup = Flipped(ValidIO(UInt(32.W)))
     val spWrite = Flipped(Decoupled(new SPWriteCmdWithSel))
+    val ptrSpWrite = Flipped(Decoupled(new SPWriteCmd(mode = "single")))
     val mask = Input(UInt((nBanks).W))
     val nNonZero = Flipped(ValidIO(UInt(32.W)))
     val vrEntry = Decoupled(new VRTableEntry)
@@ -55,23 +56,23 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   // ScratchPads
   val spVal = Module(new Scratchpad(scratchType = "Val", masked = true))
   val spCol = Module(new Scratchpad(scratchType = "Col", masked = true))
-  val spPtr = Module(new Scratchpad(scratchType = "Ptr", masked = true))
+  val spPtr = Module(new SingleScratchpad(scratchType = "Ptr", masked = false))
   val spDen = Module(new BankedScratchpad(scratchType = "Den"))
   val spOut = Module(new BankedScratchpad(scratchType = "Out"))
 
   io.spWrite.bits.spWriteCmd <> spVal.io.spWrite
   io.spWrite.bits.spWriteCmd <> spCol.io.spWrite
   io.spWrite.bits.spWriteCmd <> spDen.io.spWrite
-  io.spWrite.bits.spWriteCmd <> spPtr.io.spWrite
+  io.ptrSpWrite.bits <> spPtr.io.spWrite
   io.spWrite.ready := true.B
+  io.ptrSpWrite.ready := true.B
   spVal.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 0.U)
   spDen.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 1.U)
-  spPtr.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 2.U)
+  spPtr.io.writeEn := io.ptrSpWrite.fire
   spCol.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 3.U)
 
   spVal.io.spReadCmd.addr := io.spWrite.bits.spWriteCmd.addr
   spPtr.io.spReadCmd.addr := d1_rowPtrAddr
-  spPtr.io.mask.get := io.mask
   spCol.io.spReadCmd.addr := io.spWrite.bits.spWriteCmd.addr
   spCol.io.mask.get := io.mask
   spVal.io.mask.get := io.mask
@@ -103,7 +104,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val isVR = (spPtr.io.spReadData.data =/= rowPtrBegin)
   val isVR_q = RegEnable(isVR, pulse)
   val d1_numRowPtr_q = RegInit(0.U(32.W))
-  val rowPtrDone = d1_numRowPtr_q === rowPtrSize
+  val rowPtrDone = d1_numRowPtr_q >= rowPtrSize
   d1Queue.io.enq.bits.rowPtr1Data := d1_rowPtr1Data_q
   d1Queue.io.enq.bits.rowPtr2Data := d1_rowPtr2Data_q
   d1Queue.io.enq.valid := d1_reqValid_q
@@ -144,15 +145,24 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
       }
     }
     is(sRowPtr1){
-      d1_reqValid_q := false.B
-      d1_state_q := sRowPtr2
-      d1_rowPtr1Data_q := spPtr.io.spReadData.data - rowPtrBegin
+      when(rowPtrSize === 1.U){
+        d1_rowPtr1Data_q := spPtr.io.spReadData.data - rowPtrBegin
+        d1_rowPtr2Data_q := rowPtrEnd - rowPtrBegin
+        d1_state_q := sIdle
+        d1_reqValid_q := true.B
+      }.otherwise{
+        d1_reqValid_q := false.B
+        d1_state_q := sRowPtr2
+        d1_rowPtr1Data_q := spPtr.io.spReadData.data - rowPtrBegin
+      }
     }
     is(sRowPtr2){
       when(rowPtrDone){
         when(d1_rowPtr2Data_q =/= (rowPtrEnd - rowPtrBegin)){
           d1_rowPtr1Data_q := d1_rowPtr2Data_q
           d1_rowPtr2Data_q := rowPtrEnd - rowPtrBegin
+          d1_state_q := sIdle
+          d1_reqValid_q := true.B
         }.otherwise{
           d1_state_q := sIdle
           d1_reqValid_q := false.B
@@ -177,7 +187,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   spPtr.io.spReadCmd.addr  := Mux(d1_state_q === sIdle, d1_rowPtrAddr_q, d1_rowPtrAddr)
   val d1_currRowPtr = d1Queue.io.deq.bits.rowPtr1Data
   val d1_currDenCol = 0.U(cp.blockSize.W)
-  val decompressDone = ((d1_state_q === sIdle) && ((d1_statePrev_q === sRowPtr2) || (pulse) && rowPtrSize === 0.U))
+  val decompressDone = ((d1_state_q === sIdle) && ((d1_statePrev_q === sRowPtr2) || ((pulse) && rowPtrSize === 0.U) || (d1_statePrev_q === sRowPtr1)))
   vrQueue.io.enq.valid := decompressDone
   vrQueue.io.enq.bits.isVRWithPrevGroup := isVR_q
   vrQueue.io.enq.bits.nRows := d1_numRow
@@ -270,6 +280,6 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
 
   spOut.io.spReadCmd <> io.outReadCmd
   spOut.io.spReadData <> io.outReadData
-  val pipeEmpty = (d1_state_q === sIdle) && (d1Queue.io.count === 0.U) && (!d2_valid) && (!dr_valid_q) && (!m_valid_q)
+  val pipeEmpty = (d1_state_q === sIdle) && (d1Queue.io.count === 0.U) && (!d2_valid) && (!dr_valid_q) && (!m_valid_q) && !(d1Queue.io.enq.valid)
   io.done := !pulse && pipeEmpty
 }
