@@ -148,7 +148,6 @@ class GlobalBuffer(scratchType: String = "Global")(implicit p: Parameters)extend
   }
   io.spReadData.data := MuxTree(bankSelPrev, rdata)
 
-  assert(rdata(0) =/= 19.U)
 }
 
 // Writes 512 bits and reads 32 bits at a time 
@@ -208,7 +207,6 @@ class Scratchpad(scratchType: String = "Col", masked: Boolean = false)(implicit 
   }
   io.spReadData.data := MuxTree(bankSelPrev, rdata)
 
-  assert(rdata(0) =/= 19.U)
 }
 
 class SingleScratchpad(scratchType: String = "Ptr", masked: Boolean = false)(implicit p: Parameters)extends Module with ISAConstants{
@@ -298,5 +296,4 @@ class OutputScratchpad(scratchType: String = "Out", debug: Boolean = false)(impl
   }
   io.spReadData.data := rdata.reverse.reduce(Cat(_,_))
 
-  assert(ram(0)(1)=/=19.U)
 }

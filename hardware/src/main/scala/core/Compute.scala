@@ -37,7 +37,11 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val done = Output(Bool())
   })
   val bankBlockSizeBytes = cp.bankBlockSize/8
-
+  val denseLoaded = RegInit(false.B)
+  val computeTimeOut = RegInit(0.U(32.W))
+  val computeTimer = RegInit(0.U(32.W))
+  val computeSkipCount = RegInit(0.U(32.W))
+  dontTouch(computeSkipCount)
 
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
@@ -340,7 +344,11 @@ io.done := (state === sIdle) && !start
     is(sDataMoveVal){
       when(valFin){
         when(groupEnd){
-          state := sDataMoveDen
+          when(denseLoaded){
+            state := sCompute
+          }.otherwise{
+            state := sDataMoveDen
+          }
           denReadAddr := denReadAddr + bankBlockSizeBytes.U
         }
         valReadAddr := valReadAddr + bankBlockSizeBytes.U
@@ -355,8 +363,20 @@ io.done := (state === sIdle) && !start
       }
     }
     is(sCompute){
+      when(!denseLoaded){
+        computeTimeOut := computeTimeOut + 1.U
+      }.otherwise{
+        computeTimer := computeTimer + 1.U
+      }
       when(computeDone){
         state := sCombineGroup
+        denseLoaded := true.B
+      }.elsewhen(denseLoaded){
+        when(computeTimer === computeTimeOut){
+          state := sIdle
+          computeTimer := 0.U
+          computeSkipCount := computeSkipCount + 1.U
+        }
       }
     }
     is(sCombineGroup){
@@ -376,4 +396,5 @@ io.done := (state === sIdle) && !start
       }
     }
   }
+  assert(computeSkipCount =/= 1000.U)
 }

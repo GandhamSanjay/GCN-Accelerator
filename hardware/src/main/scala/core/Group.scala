@@ -34,7 +34,6 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   
   val pulse = io.start && !RegNext(io.start)
   val rowPtrSize = RegEnable(io.nRowPtrInGroup.bits, io.nRowPtrInGroup.valid)
-  assert(rowPtrSize =/= 19.U)
   val nNonZero = RegEnable(io.nNonZero.bits, io.nNonZero.valid)
   val rowPtrBegin = RegInit(0.U(cp.blockSize.W))
   val rowPtrEnd = RegInit(0.U(cp.blockSize.W))
@@ -96,7 +95,6 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val d1_rowPtr1Data_q = Reg(chiselTypeOf(spPtr.io.spReadData.data))
   val d1_rowPtr2Data_q = Reg(chiselTypeOf(spPtr.io.spReadData.data))
   dontTouch(d1_rowPtr1Data_q)
-  assert((d1_rowPtr1Data_q + d1_rowPtr2Data_q )=/= 19.U)
   val isVR = (spPtr.io.spReadData.data =/= rowPtrBegin)
   val isVR_q = RegEnable(isVR, pulse)
   val d1_numRowPtr_q = RegInit(0.U(32.W))
@@ -256,7 +254,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   for( i<-0 until cp.nPE){
     spDen.io.spReadCmd(i).addr := ((dr_colIdx << log2Ceil(blockSizeBytes)) << log2Ceil(cp.nColInDense)) + (dr_denCol(i) << log2Ceil(blockSizeBytes))
   }
-  assert(dr_colIdx =/= 19.U)
+  
 
     /* Pipeline Stage: M (MAC)
   Cycles = 1

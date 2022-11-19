@@ -31,14 +31,14 @@ case class CoreParams(
   val peOutputScratchQueueEntries: Int = 10,
   val loadDataQueueEntries: Int = 10,
   val Compression: String = "CSR",
-  val scratchColSize: Int = 1024*8*1024,
+  val scratchColSize: Int = 1024*8*10,
   val scratchDenSize: Int = 1024*8*1024,
-  val scratchValSize: Int = 1024*8*1024,
-  val scratchPtrSize: Int = 1024*8*1024,
+  val scratchValSize: Int = 1024*8*10,
+  val scratchPtrSize: Int = 1024*8*10,
   val globalBufferSize: Int = 1024*8*1024*128,
-  val nColInDense: Int = 2,
+  val nColInDense: Int = 8,
   val blockSize: Int = 32,
-  val nGroups: Int = 4
+  val nGroups: Int = 32
 ) {
   val nPE: Int = nColInDense
   val bankBlockSize: Int = nColInDense * blockSize
