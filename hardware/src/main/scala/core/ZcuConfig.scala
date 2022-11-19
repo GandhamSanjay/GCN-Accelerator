@@ -38,7 +38,7 @@ case class CoreParams(
   val globalBufferSize: Int = 1024*8*1024*128,
   val nColInDense: Int = 2,
   val blockSize: Int = 32,
-  val nGroups: Int = 2
+  val nGroups: Int = 4
 ) {
   val nPE: Int = nColInDense
   val bankBlockSize: Int = nColInDense * blockSize

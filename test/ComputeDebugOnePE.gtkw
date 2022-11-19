@@ -1,64 +1,52 @@
 [*]
 [*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
-[*] Fri Nov 18 02:09:35 2022
+[*] Sat Nov 19 00:36:53 2022
 [*]
 [dumpfile] "/home/sanjay/research/GCN-Accelerator/test/Wrapper.vcd"
-[dumpfile_mtime] "Fri Nov 18 01:48:57 2022"
-[dumpfile_size] 546038
+[dumpfile_mtime] "Sat Nov 19 00:15:56 2022"
+[dumpfile_size] 1623785
 [savefile] "/home/sanjay/research/GCN-Accelerator/test/ComputeDebugOnePE.gtkw"
-[timestart] 248900
-[size] 1848 1136
-[pos] -51 -51
-*-15.000000 268700 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[timestart] 742370
+[size] 1920 1043
+[pos] 1809 -66
+*-14.000000 769070 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] Wrapper.
 [treeopen] Wrapper.core.
 [treeopen] Wrapper.core.compute.
 [treeopen] Wrapper.core.compute.groupArray_0.
 [treeopen] Wrapper.core.compute.groupArray_1.
 [treeopen] Wrapper.core.load.
-[sst_width] 474
-[signals_width] 566
+[sst_width] 363
+[signals_width] 646
 [sst_expanded] 1
-[sst_vpaned_height] 331
+[sst_vpaned_height] 298
 @22
-Wrapper.core.compute.groupArray_1.d1Queue_io_count[3:0]
-Wrapper.core.compute.groupArray_1.d1Queue_io_deq_bits_rowPtr1Data[31:0]
-Wrapper.core.compute.groupArray_1.d1Queue_io_deq_bits_rowPtr2Data[31:0]
+Wrapper.core.compute.groupArray_0.spOut.io_spWrite_addr[31:0]
+Wrapper.core.compute.groupArray_0.spOut.io_spWrite_data[127:0]
 @28
-Wrapper.core.compute.groupArray_1.d1Queue_io_deq_ready
-Wrapper.core.compute.groupArray_1.d1Queue_io_deq_valid
+Wrapper.core.compute.groupArray_0.spOut.io_writeEn
 @22
-Wrapper.core.compute.groupArray_1.d1Queue_io_enq_bits_rowPtr1Data[31:0]
-Wrapper.core.compute.groupArray_1.d1Queue_io_enq_bits_rowPtr2Data[31:0]
+Wrapper.core.compute.groupArray_1.spOut.io_spWrite_addr[31:0]
+Wrapper.core.compute.groupArray_1.spOut.io_spWrite_data[127:0]
 @28
-Wrapper.core.compute.groupArray_1.d1Queue_io_enq_ready
-Wrapper.core.compute.groupArray_1.d1Queue_io_enq_valid
-Wrapper.core.compute.groupArray_1.d1_state_q[1:0]
-Wrapper.core.compute.groupArray_1.pulse
+Wrapper.core.compute.groupArray_1.spOut.io_writeEn
+Wrapper.core.compute.groupArray_1.m_valid_q
 @22
-Wrapper.core.compute.groupArray_1.rowPtrSize[31:0]
-@28
-Wrapper.core.compute.groupArray_1.isVR
+Wrapper.core.compute.groupArray_1.spVal_io_spReadData_data[31:0]
+@24
+Wrapper.core.compute.groupArray_1.spVal_io_spReadCmd_addr[31:0]
 @22
-Wrapper.core.compute.groupArray_1.spPtr.io_spWrite_addr[31:0]
-Wrapper.core.compute.groupArray_1.spPtr.io_spWrite_data[31:0]
+Wrapper.core.compute.groupArray_1.spVal.io_spWrite_addr[31:0]
+Wrapper.core.compute.groupArray_1.spVal.io_spWrite_data[127:0]
 @28
-Wrapper.core.compute.groupArray_1.spPtr.io_writeEn
+Wrapper.core.compute.valFin
+Wrapper.core.compute.groupEnd
+Wrapper.core.compute.groupArray_1.spVal.io_writeEn
 @22
-Wrapper.core.compute.groupArray_0.spPtr.io_spWrite_addr[31:0]
-Wrapper.core.compute.groupArray_0.spPtr.io_spWrite_data[31:0]
-@28
-Wrapper.core.compute.groupArray_0.spPtr.io_writeEn
-Wrapper.core.compute.groupSel[1:0]
-Wrapper.core.compute.rowPtrWriteEn
-Wrapper.core.compute.rowPtrFin
-@22
-Wrapper.core.compute.rowPtrData[31:0]
-Wrapper.core.compute.rowPtrAddr[31:0]
-Wrapper.core.compute.rowPtrReadAddr[31:0]
-@28
-Wrapper.core.compute.start
-@23
 Wrapper.core.compute.state[3:0]
+Wrapper.core.compute.io_gbReadCmd_addr[31:0]
+Wrapper.core.compute.io_gbReadData_data[127:0]
+@23
+Wrapper.core.compute.valReadAddr[31:0]
 [pattern_trace] 1
 [pattern_trace] 0

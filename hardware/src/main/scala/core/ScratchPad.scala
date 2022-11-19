@@ -95,7 +95,6 @@ class BankedScratchpad(scratchType: String = "Col")(implicit p: Parameters)exten
     io.spReadData(i).data := rdata(i)
   }
 
-  assert(rdata(0) =/= 19.U)
 }
 
 // Masked Writes 512 bits and reads 512 bits at a time.
@@ -185,7 +184,7 @@ class Scratchpad(scratchType: String = "Col", masked: Boolean = false)(implicit 
   }
 
   when(io.writeEn){
-    val writeIdx = waddr >> log2Ceil(mp.dataBits/8)
+    val writeIdx = waddr >> log2Ceil((nBanks * blockSize)/8)
     if(masked){
       for (i <- 0 until (nBanks)){
         when(io.mask.get(i).asBool){
@@ -241,7 +240,7 @@ class SingleScratchpad(scratchType: String = "Ptr", masked: Boolean = false)(imp
   val ram = SyncReadMem(scratchSize, UInt(blockSize.W))
 
   when(io.writeEn){
-    val writeIdx = waddr >> log2Ceil(mp.dataBits/8)
+    val writeIdx = waddr >> log2Ceil(blockSize/8)
     ram.write(writeIdx, wdata)
   }
   

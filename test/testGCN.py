@@ -87,4 +87,4 @@ async def my_first_test(dut):
     #     addr = addr + 0x0004
     #     print(f"PE time = {await tb.axi_master.read_dwords(addr,1)}")
     #     addr = addr + 0x0004
-    await Timer(1, units='us')
+    await Timer(10, units='us')

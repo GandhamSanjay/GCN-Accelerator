@@ -24,7 +24,6 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     val nRowPtrInGroup = Flipped(ValidIO(UInt(32.W)))
     val spWrite = Flipped(Decoupled(new SPWriteCmdWithSel))
     val ptrSpWrite = Flipped(Decoupled(new SPWriteCmd(mode = "single")))
-    val mask = Input(UInt((nBanks).W))
     val nNonZero = Flipped(ValidIO(UInt(32.W)))
     val vrEntry = Decoupled(new VRTableEntry)
     val outReadCmd = Input(Vec(cp.nColInDense, new SPReadCmd))
@@ -44,18 +43,17 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     rowPtrBegin := rowPtrBegin + (groupID.U << Log2(io.nNonZero.bits))
     rowPtrEnd := rowPtrEnd + ((groupID + 1).U << Log2(io.nNonZero.bits))
   }.elsewhen(io.done && !RegNext(io.done)){
-    totalNonZero := totalNonZero + io.nNonZero.bits
-    rowPtrBegin := totalNonZero + io.nNonZero.bits
-    rowPtrEnd := totalNonZero + io.nNonZero.bits
+    totalNonZero := totalNonZero + (io.nNonZero.bits << log2Ceil(cp.nGroups))
+    rowPtrBegin := totalNonZero + (io.nNonZero.bits << log2Ceil(cp.nGroups))
+    rowPtrEnd := totalNonZero + (io.nNonZero.bits << log2Ceil(cp.nGroups))
   }
-  val numRows_q = Reg(UInt(cp.blockSize.W))
   val d1_rowPtrAddr = Wire(UInt(32.W))
   val vrQueue = Module(new Queue(new VRTableEntry, 1)) 
   vrQueue.io.deq <> io.vrEntry
   
   // ScratchPads
-  val spVal = Module(new Scratchpad(scratchType = "Val", masked = true))
-  val spCol = Module(new Scratchpad(scratchType = "Col", masked = true))
+  val spVal = Module(new Scratchpad(scratchType = "Val", masked = false))
+  val spCol = Module(new Scratchpad(scratchType = "Col", masked = false))
   val spPtr = Module(new SingleScratchpad(scratchType = "Ptr", masked = false))
   val spDen = Module(new BankedScratchpad(scratchType = "Den"))
   val spOut = Module(new BankedScratchpad(scratchType = "Out"))
@@ -74,8 +72,6 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   spVal.io.spReadCmd.addr := io.spWrite.bits.spWriteCmd.addr
   spPtr.io.spReadCmd.addr := d1_rowPtrAddr
   spCol.io.spReadCmd.addr := io.spWrite.bits.spWriteCmd.addr
-  spCol.io.mask.get := io.mask
-  spVal.io.mask.get := io.mask
 
   val blockSizeBytes = (cp.blockSize/8)
 
@@ -181,6 +177,8 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val d1_numRow_q = RegInit(0.U(32.W))
   when(d1Queue.io.enq.fire){
     d1_numRow_q := d1_numRow_q + 1.U
+  }.elsewhen(pulse){
+    d1_numRow_q := 0.U
   }
   val d1_numRow = Mux(d1Queue.io.enq.fire, d1_numRow_q + 1.U, d1_numRow_q)
 
@@ -188,7 +186,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val d1_currRowPtr = d1Queue.io.deq.bits.rowPtr1Data
   val d1_currDenCol = 0.U(cp.blockSize.W)
   val decompressDone = ((d1_state_q === sIdle) && ((d1_statePrev_q === sRowPtr2) || ((pulse) && rowPtrSize === 0.U) || (d1_statePrev_q === sRowPtr1)))
-  vrQueue.io.enq.valid := decompressDone
+  vrQueue.io.enq.valid := RegNext(decompressDone)
   vrQueue.io.enq.bits.isVRWithPrevGroup := isVR_q
   vrQueue.io.enq.bits.nRows := d1_numRow
 
@@ -206,6 +204,8 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val d2_rowNum_q = RegInit(0.U(M_SRAM_OFFSET_BITS.W))
   when(d1Queue.io.deq.fire){
     d2_rowNum_q := d2_rowNum_q + 1.U
+  }.elsewhen(pulse){
+    d2_rowNum_q := 0.U
   }
   val d2_nextValid = Wire(Bool())
   val d2_nextValid_q = RegInit(false.B)
