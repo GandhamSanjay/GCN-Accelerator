@@ -38,10 +38,14 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val rowPtrBegin = RegInit(0.U(cp.blockSize.W))
   val rowPtrEnd = RegInit(0.U(cp.blockSize.W))
   val totalNonZero = RegInit(0.U(cp.blockSize.W))
+
   when(io.nNonZero.valid){
+    // Find the bounds of this group's segment of the row pointer
+    // If nNonZero = 2, group 0 gets [0,2) + offset, group 1 gets [2,4) + offset, etc
+    // Used to remove the offset and determine if virtual row pointers are neccessary
     rowPtrBegin := rowPtrBegin + (groupID.U << Log2(io.nNonZero.bits))
     rowPtrEnd := rowPtrEnd + ((groupID + 1).U << Log2(io.nNonZero.bits))
-  }.elsewhen(io.done && !RegNext(io.done)){
+  }.elsewhen(io.done && !RegNext(io.done)){ // Rising edge
     totalNonZero := totalNonZero + (io.nNonZero.bits << log2Ceil(cp.nGroups))
     rowPtrBegin := totalNonZero + (io.nNonZero.bits << log2Ceil(cp.nGroups))
     rowPtrEnd := totalNonZero + (io.nNonZero.bits << log2Ceil(cp.nGroups))
@@ -109,6 +113,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     d1_numRowPtr_q := 0.U
   }
 
+  // Increment row pointer to next block
   when((d1_state_q === sRowPtr1) || (d1_state_q === sRowPtr2)){
     d1_rowPtrAddr_q := d1_rowPtrAddr
     d1_rowPtrInc := true.B
@@ -121,11 +126,13 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
       d1_rowPtrAddr_q := 0.U
       when(pulse){
         when(rowPtrSize === 0.U){
+          // Virtual row pointer on both ends
           d1_rowPtr1Data_q := rowPtrBegin - rowPtrBegin
           d1_rowPtr2Data_q := rowPtrEnd - rowPtrBegin
           d1_reqValid_q := true.B
         }.otherwise{
           when(isVR){
+            // Virtual row pointer at start, continue normally
             d1_rowPtr1Data_q := rowPtrBegin - rowPtrBegin
             d1_rowPtr2Data_q := spPtr.io.spReadData.data - rowPtrBegin
             d1_reqValid_q := true.B
@@ -140,6 +147,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     }
     is(sRowPtr1){
       when(rowPtrSize === 1.U){
+        // Needs virtual row pointer on the end of the row
         d1_rowPtr1Data_q := spPtr.io.spReadData.data - rowPtrBegin
         d1_rowPtr2Data_q := rowPtrEnd - rowPtrBegin
         d1_state_q := sIdle
@@ -153,6 +161,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     is(sRowPtr2){
       when(rowPtrDone){
         when(d1_rowPtr2Data_q =/= (rowPtrEnd - rowPtrBegin)){
+          // Needs virtual row pointer on the end of the row
           d1_rowPtr1Data_q := d1_rowPtr2Data_q
           d1_rowPtr2Data_q := rowPtrEnd - rowPtrBegin
           d1_state_q := sIdle
