@@ -13,11 +13,16 @@ import vta.util.config._
  * Control Registers (CR) and the Memory Engine (ME) interfaces.
  */
 
-class Core(implicit p: Parameters) extends Module {
+trait CoreInterface extends Module {
   val io = IO(new Bundle {
-    val cr = new CRClient
-    val me = new MEMaster
+    val cr = new CRClient()(new ZcuConfig)
+    val me = new MEMaster()(new ZcuConfig)
   })
+}
+
+
+class Core(implicit p: Parameters) extends Module with CoreInterface {
+
   val cp = p(AccKey).coreParams
   val cr = p(AccKey).crParams
   val fetch = Module(new Fetch)

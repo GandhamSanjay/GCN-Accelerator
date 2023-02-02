@@ -17,7 +17,10 @@ class Wrapper(implicit p: Parameters) extends RawModule{
     Module(new CR)
   }
   val core = withClockAndReset(clock = ap_clk, reset = ~ap_rst_n) {
-    Module(new Core)
+    if (p(AccKey).coreParams.Compression == "CSR")
+      Module(new Core)
+    else
+      Module(new CoreCSC)
   }
   val me = withClockAndReset(clock = ap_clk, reset = ~ap_rst_n) {
     Module(new ME)
