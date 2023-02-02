@@ -30,24 +30,29 @@ case class CoreParams(
   val computeInstQueueEntries: Int = 1,
   val peOutputScratchQueueEntries: Int = 10,
   val loadDataQueueEntries: Int = 10,
-  val Compression: String = "CSR",
+  val Compression: String = "CSC",
   val scratchColSize: Int = 1024*8*10,
+  val scratchRowSize: Int = 1024*8*10,
   val scratchDenSize: Int = 1024*8*1024,
   val scratchValSize: Int = 1024*8*10,
   val scratchPtrSize: Int = 1024*8*10,
   val globalBufferSize: Int = 1024*8*1024*128,
-  val nColInDense: Int = 8,
+  val nColInDense: Int = 2,
+  val nRowInDense: Int = 4,
   val blockSize: Int = 32,
-  val nGroups: Int = 32
+  val nGroups: Int = 2
 ) {
   val nPE: Int = nColInDense
   val bankBlockSize: Int = nColInDense * blockSize
   private val ScratchPadMap: HashMap[String, Int] =
-    HashMap(("CSR", 5), ("None", 2))
+    HashMap(("CSR", 5), ("CSC", 5), ("None", 2))
   var scratchSizeMap: HashMap[String, Int] = HashMap(("None", 0))
   if(Compression=="CSR"){
     scratchSizeMap = 
       HashMap(("Col", scratchColSize), ("Val", scratchValSize), ("Ptr", scratchPtrSize), ("Den", scratchDenSize), ("Out", scratchDenSize),("Psum", scratchDenSize))
+  }else if (Compression=="CSC"){
+    scratchSizeMap = 
+      HashMap(("Row", scratchColSize), ("Val", scratchValSize), ("Ptr", scratchPtrSize), ("Den", scratchDenSize), ("Out", scratchDenSize),("Psum", scratchDenSize))
   }
   val nScratchPadMem = ScratchPadMap(Compression)
 }
