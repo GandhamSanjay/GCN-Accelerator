@@ -45,7 +45,7 @@ class ComputeCSC(debug: Boolean = false)(implicit p: Parameters) extends Module 
 
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
-  val dec = Module(new ComputeDecodeCSC)
+  val dec = Module(new ComputeDecode)
   val vCTable = SyncReadMem(cp.nGroups, new VCTableEntry)
   val vCTableReadGroup_q = RegInit(0.U(log2Ceil(cp.nGroups).W))
   val vCTableReadGroup = Wire(chiselTypeOf(vCTableReadGroup_q))
@@ -142,12 +142,12 @@ when(vcArbiter.io.out.valid){
   // Den Splitting
   val denReadAddr = RegInit(0.U(32.W))
   val denWriteAddr = RegInit(0.U(32.W))
-  val denReadBlockNum = RegInit(cp.nRowInDense.U(32.W))
+  val denReadBlockNum = RegInit(cp.nColInDense.U(32.W))
   val denFin = (denReadBlockNum >= dec.io.denSize)
   when(state === sDataMoveDen){
-    denReadBlockNum := denReadBlockNum + cp.nRowInDense.U
+    denReadBlockNum := denReadBlockNum + cp.nColInDense.U
   }.otherwise{
-    denReadBlockNum := cp.nRowInDense.U
+    denReadBlockNum := cp.nColInDense.U
   }
   when((state === sDataMoveDen)){
     when(denFin){
@@ -313,7 +313,7 @@ io.done := (state === sIdle) && !start
     is(sIdle){
       when(start){
         state := sDataMoveCol
-        rowReadAddr := dec.io.sramRow
+        rowReadAddr := dec.io.sramCol  // TODO: Change this
         valReadAddr := dec.io.sramVal
         denReadAddr := dec.io.sramDen
         colPtrAddr := dec.io.sramPtr

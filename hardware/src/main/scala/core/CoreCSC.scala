@@ -18,7 +18,7 @@ class CoreCSC(implicit p: Parameters) extends Module  with CoreInterface  {
   val cp = p(AccKey).coreParams
   val cr = p(AccKey).crParams
   val fetch = Module(new Fetch)
-  val load = Module(new LoadCSC)
+  val load = Module(new Load) // TODO: Will need to change eventually
   val globalBuffer = Module(new GlobalBuffer())
   val outputScratchpad = Module(new OutputScratchpad())
   val compute = Module(new ComputeCSC)
