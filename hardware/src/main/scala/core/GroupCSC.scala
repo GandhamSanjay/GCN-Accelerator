@@ -11,6 +11,7 @@ class colPtrData(implicit p: Parameters) extends Bundle{
   val cp = p(AccKey).coreParams
   val colPtr1Data = UInt(32.W)
   val colPtr2Data = UInt(32.W)
+  val colPtrOffset = UInt(32.W)
 }
 
 
@@ -98,6 +99,7 @@ class GroupCSC(val groupID: Int = 0)(implicit p: Parameters) extends Module with
   d1_colPtrAddr := Mux(d1_colPtrInc, d1_colPtrAddr_q + blockSizeBytes.U, d1_colPtrAddr_q) 
   val d1_colPtr1Data_q = Reg(chiselTypeOf(spPtr.io.spReadData.data))
   val d1_colPtr2Data_q = Reg(chiselTypeOf(spPtr.io.spReadData.data))
+  val d1_colPtrOffset_q = Reg(chiselTypeOf(spPtr.io.spReadData.data))
   dontTouch(d1_colPtr1Data_q)
   val isVC = (spPtr.io.spReadData.data =/= colPtrBegin)
   val isVC_q = RegEnable(isVC, pulse)
@@ -105,6 +107,7 @@ class GroupCSC(val groupID: Int = 0)(implicit p: Parameters) extends Module with
   val colPtrDone = d1_numColPtr_q >= colPtrSize
   d1Queue.io.enq.bits.colPtr1Data := d1_colPtr1Data_q
   d1Queue.io.enq.bits.colPtr2Data := d1_colPtr2Data_q
+  d1Queue.io.enq.bits.colPtrOffset := d1_colPtrOffset_q
   d1Queue.io.enq.valid := d1_reqValid_q
 
   when((d1_state_q === sColPtr2) && !colPtrDone){
@@ -129,16 +132,19 @@ class GroupCSC(val groupID: Int = 0)(implicit p: Parameters) extends Module with
           // Virtual col pointer on both ends
           d1_colPtr1Data_q := colPtrBegin - colPtrBegin
           d1_colPtr2Data_q := colPtrEnd - colPtrBegin
+          d1_colPtrOffset_q := colPtrBegin - 1.U
           d1_reqValid_q := true.B
         }.otherwise{
           when(isVC){
             // Virtual col pointer at start, continue normally
             d1_colPtr1Data_q := colPtrBegin - colPtrBegin
             d1_colPtr2Data_q := spPtr.io.spReadData.data - colPtrBegin
+            d1_colPtrOffset_q := colPtrBegin - 1.U
             d1_reqValid_q := true.B
             d1_state_q := sColPtr1
           }.otherwise{
             d1_state_q := sColPtr1
+            d1_colPtrOffset_q := colPtrBegin
           }
         }
       }.otherwise{
@@ -220,10 +226,12 @@ class GroupCSC(val groupID: Int = 0)(implicit p: Parameters) extends Module with
   val d2_valid = WireDefault(false.B)
   val d2_colPtr1Data_q = RegInit(0.U(cp.blockSize.W))
   val d2_colPtr2Data_q = RegInit(0.U(cp.blockSize.W))
+  val d2_colPtrOffset_q = RegInit(0.U(cp.blockSize.W))
   val d2_currColPtr_q = RegInit(0.U(cp.blockSize.W))
   val d2_currColPtr = Mux(d2_nextValid_q, d2_nextColPtr_q, d1_currColPtr)
   val d2_colPtr1Data = Mux(d2_nextValid_q, d2_colPtr1Data_q, d1Queue.io.deq.bits.colPtr1Data)
   val d2_colPtr2Data = Mux(d2_nextValid_q, d2_colPtr2Data_q, d1Queue.io.deq.bits.colPtr2Data)
+  val d2_colPtrOffset = Mux(d2_nextValid_q, d2_colPtrOffset_q, d1Queue.io.deq.bits.colPtrOffset)
   val d2_endOfCol_q = RegInit(false.B)
   val d2_isNewOutput_q = RegNext(d2_currColPtr === d2_colPtr1Data)
   d1Queue.io.deq.ready := !d2_nextValid
@@ -231,6 +239,7 @@ class GroupCSC(val groupID: Int = 0)(implicit p: Parameters) extends Module with
   d2_valid := d2_nextValid_q || (d1Queue.io.deq.valid && !d2_nextValid_q)
   d2_colPtr1Data_q := d2_colPtr1Data
   d2_colPtr2Data_q := d2_colPtr2Data
+  d2_colPtrOffset_q := d2_colPtrOffset
   d2_currColPtr_q := d2_currColPtr
   spRow.io.spReadCmd.addr := (d2_currColPtr << log2Ceil(blockSizeBytes))
   val d2_endOfCol = (d2_currColPtr === (d2_colPtr2Data - 1.U))
@@ -255,10 +264,10 @@ class GroupCSC(val groupID: Int = 0)(implicit p: Parameters) extends Module with
   val dr_valid_q = RegNext(d2_valid)
   val dr_colNum_q = RegEnable(d2_colNum_q, dr_valid_q)
 
-  // This is the dr_colIdx in the original, is is used to read the dense row that matches the sparse col
-  // This gets a bit more complicated for outer product since we need to read each row
-  // NOTE: I have NOT changed this to read each row yet
-  val dr_rowIdx = spRow.io.spReadData.data 
+  // In the CSR version we accessed a dense row based on the column index. We still need to do that,
+  // but the column index is now based on the pointer accesses instead of being directly read from an array
+  // The colPtrOffset accounts for the parts of the colPtr that are in other groups, and for the virtual column pointers
+  val dr_rowIdx = RegNext(d2_colNum_q) + d2_colPtrOffset_q
   val dr_outWrite_q = RegEnable(d2_endOfCol_q, dr_valid_q)
   val dr_outWriteEmptyCol_q = RegEnable(d2_emptyCol_q, dr_valid_q)
   val dr_isNewOutput_q = RegEnable(d2_isNewOutput_q, dr_valid_q)
