@@ -90,6 +90,7 @@ when(vcArbiter.io.out.valid){
   val colPtrReadAddr = Mux(start, dec.io.sramPtr, Mux(colPtrFin, colPtrAddr, colPtrAddr + (cp.blockSize/8).U)) 
   colPtrFin := colPtrData >= (nNonZeroPrevTotal + (( groupSel + 1.U) << Log2(nNonZeroPerGroup)))
   val colPtrWriteAddr = RegInit(0.U(C_SRAM_OFFSET_BITS.W))
+  val colPtrOffset = RegInit(0.U(32.W))
   when(state === sDataMoveCol){
     when(colPtrFin){
       colPtrWriteAddr := 0.U
@@ -162,7 +163,9 @@ when(vcArbiter.io.out.valid){
     when(groupEnd){
       groupSel := 0.U
       nColWritten_q := 0.U
+      colPtrOffset := 0.U
     }.otherwise{
+      colPtrOffset := Mux(groupSel === 0.U, colPtrOffset + nColWritten_q - 1.U, colPtrOffset + nColWritten_q)
       groupSel := groupSel + 1.U
       nColWritten_q := 0.U
     }
@@ -266,6 +269,9 @@ when(prColWrite){
     groupArray(i).io.nNonZero.valid := start
     groupArray(i).io.start := (state === sCompute)
     groupArray(i).io.ptrSpWrite.bits.addr :=  colPtrWriteAddr
+    groupArray(i).io.colPtrOffset.bits := colPtrOffset
+    // Saves offset on rising edge of colPtrWriteEn or rising edge of groupSel when in the sDataMoveCol state
+    groupArray(i).io.colPtrOffset.valid := (state === sDataMoveCol) && (((colPtrWriteEn && !RegNext(colPtrWriteEn)) && (groupSel === i.U)) || (groupSel === i.U && RegNext(groupSel) =/= groupSel))
     groupArray(i).io.ptrSpWrite.valid :=  colPtrWriteEn && (groupSel === i.U)
     groupArray(i).io.ptrSpWrite.bits.data := colPtrData
     groupArray(i).io.spWrite.bits.spSel :=     
@@ -317,6 +323,7 @@ io.done := (state === sIdle) && !start
         valReadAddr := dec.io.sramVal
         denReadAddr := dec.io.sramDen
         colPtrAddr := dec.io.sramPtr
+        // colPtrOffset := 0.U initialization was moved
       }
     }
     is(sDataMoveCol){
