@@ -107,12 +107,12 @@ when(vcArbiter.io.out.valid){
   // Row Splitting
   val rowReadAddr = RegInit(0.U(32.W))
   val rowWriteAddr = RegInit(0.U(32.W))
-  val rowReadBlockNum = RegInit(cp.nRowInDense.U(32.W))
+  val rowReadBlockNum = RegInit((cp.bankBlockSize/cp.blockSize).U(32.W))
   val rowFin = (rowReadBlockNum >= ((groupSel + 1.U) << Log2(nNonZeroPerGroup)))
   when(state === sDataMoveRow){
-    rowReadBlockNum := rowReadBlockNum + cp.nRowInDense.U
+    rowReadBlockNum := rowReadBlockNum + (cp.bankBlockSize/cp.blockSize).U
   }.otherwise{
-    rowReadBlockNum := cp.nRowInDense.U
+    rowReadBlockNum := (cp.bankBlockSize/cp.blockSize).U
   }
   when((state === sDataMoveRow)){
     when(rowFin){
@@ -125,12 +125,12 @@ when(vcArbiter.io.out.valid){
   // Val Splitting
   val valReadAddr = RegInit(0.U(32.W))
   val valWriteAddr = RegInit(0.U(32.W))
-  val valReadBlockNum = RegInit(cp.nRowInDense.U(32.W))
+  val valReadBlockNum = RegInit((cp.bankBlockSize/cp.blockSize).U(32.W))
   val valFin = (valReadBlockNum >= ((groupSel + 1.U) << Log2(nNonZeroPerGroup)))
   when(state === sDataMoveVal){
-    valReadBlockNum := valReadBlockNum + cp.nRowInDense.U
+    valReadBlockNum := valReadBlockNum + (cp.bankBlockSize/cp.blockSize).U
   }.otherwise{
-    valReadBlockNum := cp.nRowInDense.U
+    valReadBlockNum := (cp.bankBlockSize/cp.blockSize).U
   }
   when((state === sDataMoveVal)){
     when(valFin){
