@@ -191,8 +191,7 @@ val aggDone = vRTableReadGroup_q === (cp.nGroups - 1).U
 val currRowInGroup_q = RegInit(0.U(32.W))
 val currRowInGroup = Wire(chiselTypeOf(currRowInGroup_q))
 val nRowInGroup = vRTableReadData.nRows
-val isPR = dec.io.prStart && (outRowCount_q === 0.U)
-val isVR = vRTableReadData.isVRWithPrevGroup && !isPR
+val isVR = vRTableReadData.isVRWithPrevGroup
 val groupOutAddr = currRowInGroup << log2Ceil((cp.blockSize * cp.nColInDense)/8)
 val groupOutData = Wire(chiselTypeOf(groupArray(0).io.outReadData))
 val groupOutDataPrev = RegEnable(groupOutData, state === sCombine)
@@ -203,10 +202,9 @@ val prSplitData = for(i <- 0 until cp.nColInDense)yield{
   prData_q(((i+1)*cp.blockSize) -1, i*cp.blockSize)
 }
 val prStartRow = (state === sCombine) && (currRowInGroup_q === 0.U) && (vRTableReadGroup_q === 0.U)
-val prRowAgg = dec.io.prStart && prStartRow
 val outDataPrAgg = groupOutData.map(_.data).zip(prSplitData).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
 val outDataNoAgg = groupOutData.map(_.data).reverse.reduce(Cat(_,_))
-val outData = Mux(aggWithPrevGroup, outDataAgg, Mux(prRowAgg, outDataPrAgg, outDataNoAgg))
+val outData = Mux(aggWithPrevGroup, outDataAgg, outDataNoAgg)
 
 val outvRCount_q = RegInit(0.U(32.W))
 val outvRCount = Mux(state === sCombine && (RegNext(state)===sCombineGroup), outvRCount_q + isVR.asUInt, outvRCount_q)
@@ -241,16 +239,6 @@ vRTableReadGroup := Mux(((state === sCombine) || (state === sCombineGroup)) && (
 io.spOutWrite.bits.addr := outWriteAddr
 io.spOutWrite.bits.data := outData
 io.spOutWrite.valid := outWriteEn
-
-// pr partial sum io
-val prEndRow = (state === sCombine) && (currRowInGroup_q === (nRowInGroup - 1.U)) && (vRTableReadGroup_q === (cp.nGroups - 1).U)
-val prRowWrite = dec.io.prEnd && prEndRow
-val prData = outData
-when(prRowWrite){
-  prData_q := prData
-}
-
-
 
 // group io
   for(i <- 0 until cp.nGroups){

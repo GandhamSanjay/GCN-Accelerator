@@ -162,8 +162,6 @@ class ComputeDecode extends Module with ISAConstants{
     val denSize = Output(UInt(C_XSIZE_BITS.W))
     val colSize = Output(UInt(C_YSIZE_BITS.W))
     val rowSize = Output(UInt(C_YSIZE_BITS.W))
-    val prStart = Output(Bool())
-    val prEnd = Output(Bool())
   })
   val dec = io.inst.asTypeOf(new SpMMDecode)
   io.sramVal := dec.sram_offset_val
@@ -173,8 +171,6 @@ class ComputeDecode extends Module with ISAConstants{
   io.denSize := dec.den_size
   io.colSize := dec.col_size
   io.rowSize := dec.row_size
-  io.prStart := dec.pr_valid(1)
-  io.prEnd := dec.pr_valid(0)
 }
 
 // /** StoreDecode.
