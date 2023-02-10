@@ -25,7 +25,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     val spWrite = Flipped(Decoupled(new SPWriteCmdWithSel))
     val ptrSpWrite = Flipped(Decoupled(new SPWriteCmd(mode = "single")))
     val nNonZero = Flipped(ValidIO(UInt(32.W)))
-    val vrEntry = Decoupled(new VRTableEntry)
+    val prEntry = Decoupled(new PRTableEntry)
     val outReadCmd = Input(Vec(cp.nColInDense, new SPReadCmd))
     val outReadData = Output(Vec(cp.nColInDense, new SPReadData))
     val start = Input(Bool())
@@ -38,17 +38,18 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val rowPtrBegin = RegInit(0.U(cp.blockSize.W))
   val rowPtrEnd = RegInit(0.U(cp.blockSize.W))
   val totalNonZero = RegInit(0.U(cp.blockSize.W))
+
   when(io.nNonZero.valid){
     rowPtrBegin := rowPtrBegin + (groupID.U << Log2(io.nNonZero.bits))
     rowPtrEnd := rowPtrEnd + ((groupID + 1).U << Log2(io.nNonZero.bits))
-  }.elsewhen(io.done && !RegNext(io.done)){
+  }.elsewhen(io.done && !RegNext(io.done)){ // Rising edge
     totalNonZero := totalNonZero + (io.nNonZero.bits << log2Ceil(cp.nGroups))
     rowPtrBegin := totalNonZero + (io.nNonZero.bits << log2Ceil(cp.nGroups))
     rowPtrEnd := totalNonZero + (io.nNonZero.bits << log2Ceil(cp.nGroups))
   }
   val d1_rowPtrAddr = Wire(UInt(32.W))
-  val vrQueue = Module(new Queue(new VRTableEntry, 1)) 
-  vrQueue.io.deq <> io.vrEntry
+  val prQueue = Module(new Queue(new PRTableEntry, 1)) 
+  prQueue.io.deq <> io.prEntry
   
   // ScratchPads
   val spVal = Module(new Scratchpad(scratchType = "Val", masked = false))
@@ -95,8 +96,9 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val d1_rowPtr1Data_q = Reg(chiselTypeOf(spPtr.io.spReadData.data))
   val d1_rowPtr2Data_q = Reg(chiselTypeOf(spPtr.io.spReadData.data))
   dontTouch(d1_rowPtr1Data_q)
-  val isVR = (spPtr.io.spReadData.data =/= rowPtrBegin)
-  val isVR_q = RegEnable(isVR, pulse)
+  val isPR = (spPtr.io.spReadData.data =/= rowPtrBegin)
+  val isPR_q = RegEnable(isPR, pulse)
+  val isPR_withNextRow_q = Reg(Bool())
   val d1_numRowPtr_q = RegInit(0.U(32.W))
   val rowPtrDone = d1_numRowPtr_q >= rowPtrSize
   d1Queue.io.enq.bits.rowPtr1Data := d1_rowPtr1Data_q
@@ -109,6 +111,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     d1_numRowPtr_q := 0.U
   }
 
+  // Increment row pointer to next block
   when((d1_state_q === sRowPtr1) || (d1_state_q === sRowPtr2)){
     d1_rowPtrAddr_q := d1_rowPtrAddr
     d1_rowPtrInc := true.B
@@ -118,14 +121,18 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
 
   switch(d1_state_q){
     is(sIdle){
+      isPR_withNextRow_q := false.B;
       d1_rowPtrAddr_q := 0.U
       when(pulse){
         when(rowPtrSize === 0.U){
+          // Partial row pointer on both ends
           d1_rowPtr1Data_q := rowPtrBegin - rowPtrBegin
           d1_rowPtr2Data_q := rowPtrEnd - rowPtrBegin
           d1_reqValid_q := true.B
+          isPR_withNextRow_q := true.B;
         }.otherwise{
-          when(isVR){
+          when(isPR){
+            // Partial row pointer at start, continue normally
             d1_rowPtr1Data_q := rowPtrBegin - rowPtrBegin
             d1_rowPtr2Data_q := spPtr.io.spReadData.data - rowPtrBegin
             d1_reqValid_q := true.B
@@ -140,10 +147,12 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     }
     is(sRowPtr1){
       when(rowPtrSize === 1.U){
+        // Needs partial row pointer on the end of the row
         d1_rowPtr1Data_q := spPtr.io.spReadData.data - rowPtrBegin
         d1_rowPtr2Data_q := rowPtrEnd - rowPtrBegin
         d1_state_q := sIdle
         d1_reqValid_q := true.B
+        isPR_withNextRow_q := true.B
       }.otherwise{
         d1_reqValid_q := false.B
         d1_state_q := sRowPtr2
@@ -153,13 +162,16 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     is(sRowPtr2){
       when(rowPtrDone){
         when(d1_rowPtr2Data_q =/= (rowPtrEnd - rowPtrBegin)){
+          // Needs partial row pointer on the end of the row
           d1_rowPtr1Data_q := d1_rowPtr2Data_q
           d1_rowPtr2Data_q := rowPtrEnd - rowPtrBegin
           d1_state_q := sIdle
           d1_reqValid_q := true.B
+          isPR_withNextRow_q := true.B
         }.otherwise{
           d1_state_q := sIdle
           d1_reqValid_q := false.B
+          isPR_withNextRow_q := false.B
         }
       }.otherwise{
         when(d1_statePrev_q === d1_state_q){
@@ -184,9 +196,9 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val d1_currRowPtr = d1Queue.io.deq.bits.rowPtr1Data
   val d1_currDenCol = 0.U(cp.blockSize.W)
   val decompressDone = ((d1_state_q === sIdle) && ((d1_statePrev_q === sRowPtr2) || ((pulse) && rowPtrSize === 0.U) || (d1_statePrev_q === sRowPtr1)))
-  vrQueue.io.enq.valid := RegNext(decompressDone)
-  vrQueue.io.enq.bits.isVRWithPrevGroup := isVR_q
-  vrQueue.io.enq.bits.nRows := d1_numRow
+  prQueue.io.enq.valid := RegNext(decompressDone)
+  prQueue.io.enq.bits.isPRWithPrevGroup := isPR_q
+  prQueue.io.enq.bits.nRows := d1_numRow
 
   /* Pipeline Stage: D2
   Cycles = 1

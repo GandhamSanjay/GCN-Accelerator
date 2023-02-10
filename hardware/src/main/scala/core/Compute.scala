@@ -10,16 +10,16 @@ import gcn.core.util._
 //  * Takes instructions from fetch module. Schedules computation between PEs.
 //  * Arbitrates communication betwen PE and scratchpads.
 //  */
-class VRTableEntry()(implicit p: Parameters) extends Bundle{
+class PRTableEntry()(implicit p: Parameters) extends Bundle{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
   val nRows = UInt(32.W)
-  val isVRWithPrevGroup = Bool()
+  val isPRWithPrevGroup = Bool()
 }
-class VRTableEntryWithGroup()(implicit p: Parameters) extends Bundle{
+class PRTableEntryWithGroup()(implicit p: Parameters) extends Bundle{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
-  val VRTableEntry = new VRTableEntry
+  val PRTableEntry = new PRTableEntry
   val group = UInt(cp.nGroups.W)
 }
 
@@ -46,18 +46,18 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
   val dec = Module(new ComputeDecode)
-  val vRTable = SyncReadMem(cp.nGroups, new VRTableEntry)
-  val vRTableReadGroup_q = RegInit(0.U(log2Ceil(cp.nGroups).W))
-  val vRTableReadGroup = Wire(chiselTypeOf(vRTableReadGroup_q))
-  val vRTableReadData = vRTable.read(vRTableReadGroup, true.B)
+  val pRTable = SyncReadMem(cp.nGroups, new PRTableEntry)
+  val pRTableReadGroup_q = RegInit(0.U(log2Ceil(cp.nGroups).W))
+  val pRTableReadGroup = Wire(chiselTypeOf(pRTableReadGroup_q))
+  val pRTableReadData = pRTable.read(pRTableReadGroup, true.B)
   val groupArray = for(i <- 0 until cp.nGroups) yield {
     Module(new Group(groupID = i))
   }
 
-val vrArbiter = Module(new Arbiter(new VRTableEntryWithGroup, cp.nGroups))
-vrArbiter.io.out.ready := true.B
-when(vrArbiter.io.out.valid){
-  vRTable.write(vrArbiter.io.out.bits.group,vrArbiter.io.out.bits.VRTableEntry)
+val prArbiter = Module(new Arbiter(new PRTableEntryWithGroup, cp.nGroups))
+prArbiter.io.out.ready := true.B
+when(prArbiter.io.out.valid){
+  pRTable.write(prArbiter.io.out.bits.group,prArbiter.io.out.bits.PRTableEntry)
 }
 
 
@@ -187,44 +187,44 @@ when(vrArbiter.io.out.valid){
 
 // Partial outputs aggregate 
 val outRowCount_q = RegInit(0.U(32.W))
-val aggDone = vRTableReadGroup_q === (cp.nGroups - 1).U
+val aggDone = pRTableReadGroup_q === (cp.nGroups - 1).U
 val currRowInGroup_q = RegInit(0.U(32.W))
 val currRowInGroup = Wire(chiselTypeOf(currRowInGroup_q))
-val nRowInGroup = vRTableReadData.nRows
-val isVR = vRTableReadData.isVRWithPrevGroup
+val nRowInGroup = pRTableReadData.nRows
+val isPR = pRTableReadData.isPRWithPrevGroup
 val groupOutAddr = currRowInGroup << log2Ceil((cp.blockSize * cp.nColInDense)/8)
 val groupOutData = Wire(chiselTypeOf(groupArray(0).io.outReadData))
 val groupOutDataPrev = RegEnable(groupOutData, state === sCombine)
-val aggWithPrevGroup = ((currRowInGroup_q === 0.U) && isVR)
+val aggWithPrevGroup = ((currRowInGroup_q === 0.U) && isPR)
 val outDataAgg = groupOutData.map(_.data).zip(groupOutDataPrev.map(_.data)).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
 val prData_q = Reg(chiselTypeOf(outDataAgg))
 val prSplitData = for(i <- 0 until cp.nColInDense)yield{
   prData_q(((i+1)*cp.blockSize) -1, i*cp.blockSize)
 }
-val prStartRow = (state === sCombine) && (currRowInGroup_q === 0.U) && (vRTableReadGroup_q === 0.U)
+val prStartRow = (state === sCombine) && (currRowInGroup_q === 0.U) && (pRTableReadGroup_q === 0.U)
 val outDataPrAgg = groupOutData.map(_.data).zip(prSplitData).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
 val outDataNoAgg = groupOutData.map(_.data).reverse.reduce(Cat(_,_))
 val outData = Mux(aggWithPrevGroup, outDataAgg, outDataNoAgg)
 
-val outvRCount_q = RegInit(0.U(32.W))
-val outvRCount = Mux(state === sCombine && (RegNext(state)===sCombineGroup), outvRCount_q + isVR.asUInt, outvRCount_q)
+val outpRCount_q = RegInit(0.U(32.W))
+val outpRCount = Mux(state === sCombine && (RegNext(state)===sCombineGroup), outpRCount_q + isPR.asUInt, outpRCount_q)
 when(state === sCombine && (RegNext(state)===sCombineGroup)){
-  outvRCount_q := outvRCount
+  outpRCount_q := outpRCount
 }.elsewhen(state === sIdle){
-  outvRCount_q := 0.U
+  outpRCount_q := 0.U
 }
 when(state === sCombine){
   outRowCount_q := outRowCount_q + 1.U
 }.elsewhen(state === sIdle){
   outRowCount_q := 0.U
 }
-val outWriteAddr = (outRowCount_q - outvRCount) << log2Ceil((cp.blockSize * cp.nColInDense)/8)
+val outWriteAddr = (outRowCount_q - outpRCount) << log2Ceil((cp.blockSize * cp.nColInDense)/8)
 currRowInGroup := Mux(state === sCombine, currRowInGroup_q + 1.U, currRowInGroup_q)
 val outWriteEn = state === sCombine
 when((state === sCompute)){
-  vRTableReadGroup_q := 0.U
+  pRTableReadGroup_q := 0.U
 }.elsewhen(((state === sCombine) || (state === sCombineGroup)) && (currRowInGroup === nRowInGroup)){
-  vRTableReadGroup_q := vRTableReadGroup_q + 1.U
+  pRTableReadGroup_q := pRTableReadGroup_q + 1.U
 }
 
 when(state === sCombine){
@@ -234,7 +234,7 @@ when(state === sCombine){
     currRowInGroup_q := currRowInGroup
   }
 }
-vRTableReadGroup := Mux(((state === sCombine) || (state === sCombineGroup)) && (currRowInGroup === nRowInGroup),vRTableReadGroup_q + 1.U,vRTableReadGroup_q)
+pRTableReadGroup := Mux(((state === sCombine) || (state === sCombineGroup)) && (currRowInGroup === nRowInGroup),pRTableReadGroup_q + 1.U,pRTableReadGroup_q)
 
 io.spOutWrite.bits.addr := outWriteAddr
 io.spOutWrite.bits.data := outData
@@ -243,13 +243,13 @@ io.spOutWrite.valid := outWriteEn
 // group io
   for(i <- 0 until cp.nGroups){
     groupArray(i).io.outReadCmd.map(_.addr := groupOutAddr)
-    groupOutData := MuxTree(vRTableReadGroup_q, groupArray.map(_.io.outReadData))
+    groupOutData := MuxTree(pRTableReadGroup_q, groupArray.map(_.io.outReadData))
     groupArray(i).io.nRowPtrInGroup.bits := nRowWritten
     groupArray(i).io.nRowPtrInGroup.valid := (nRowWrittenValid && groupSel === i.U)
-    vrArbiter.io.in(i).bits.VRTableEntry := groupArray(i).io.vrEntry.bits
-    vrArbiter.io.in(i).bits.group := i.U
-    vrArbiter.io.in(i).valid := groupArray(i).io.vrEntry.valid
-    vrArbiter.io.in(i).ready <> groupArray(i).io.vrEntry.ready
+    prArbiter.io.in(i).bits.PRTableEntry := groupArray(i).io.prEntry.bits
+    prArbiter.io.in(i).bits.group := i.U
+    prArbiter.io.in(i).valid := groupArray(i).io.prEntry.valid
+    prArbiter.io.in(i).ready <> groupArray(i).io.prEntry.ready
     groupArray(i).io.nNonZero.bits := nNonZeroPerGroup
     groupArray(i).io.nNonZero.valid := start
     groupArray(i).io.start := (state === sCompute)
