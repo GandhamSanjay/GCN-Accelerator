@@ -1,0 +1,30 @@
+[*]
+[*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
+[*] Tue Feb  7 20:26:29 2023
+[*]
+[dumpfile] "/home/chasesza/GCN-Accelerator/test/Wrapper.vcd"
+[dumpfile_mtime] "Tue Feb  7 20:25:16 2023"
+[dumpfile_size] 1151608
+[savefile] "/home/chasesza/GCN-Accelerator/test/colPtrOffsetView.gtkw"
+[timestart] 251820
+[size] 1848 1136
+[pos] -89 -89
+*-14.000000 276000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] Wrapper.
+[treeopen] Wrapper.core.
+[treeopen] Wrapper.core.compute.
+[treeopen] Wrapper.core.compute.groupArray_0.
+[sst_width] 424
+[signals_width] 302
+[sst_expanded] 1
+[sst_vpaned_height] 699
+@24
+Wrapper.core.compute.colPtrOffset[31:0]
+Wrapper.core.compute.groupArray_0_io_colPtrOffset_valid
+Wrapper.core.compute.groupArray_0.colPtrOffset[31:0]
+Wrapper.core.compute.groupArray_1_io_colPtrOffset_valid
+Wrapper.core.compute.groupArray_1.colPtrOffset[31:0]
+Wrapper.core.compute.nColWritten_q[31:0]
+Wrapper.ap_clk
+[pattern_trace] 1
+[pattern_trace] 0

@@ -1,0 +1,607 @@
+[33mcommit b972168770e259cfe7ccc494d6b7da3d5f45de7c[m[33m ([m[1;36mHEAD -> [m[1;32maddCSC[m[33m)[m
+Author: Chase Szafranski <70776692+chasesza@users.noreply.github.com>
+Date:   Tue Feb 7 15:27:29 2023 -0500
+
+    ColPtrOffset is now passed to Group from Compute
+
+[33mcommit 1ee0099ab07b3a02183d7248ce0f4251576bcbbc[m[33m ([m[1;31morigin/addCSC[m[33m)[m
+Author: Chase Szafranski <70776692+chasesza@users.noreply.github.com>
+Date:   Fri Feb 3 15:02:08 2023 -0500
+
+    Changed the dense row to the correct row for outer-product matrix multiplication
+
+[33mcommit 1eacbc770da930a2e07a71fafd32ef191911d1fb[m
+Author: Chase Szafranski <70776692+chasesza@users.noreply.github.com>
+Date:   Fri Feb 3 14:55:09 2023 -0500
+
+    Reverted to original code for loading dense matrix to scratchpad
+
+[33mcommit 990e47698d0e128aa829eb856f1953ed80ff5310[m
+Author: Chase Szafranski <70776692+chasesza@users.noreply.github.com>
+Date:   Thu Feb 2 17:29:07 2023 -0500
+
+    Initial commit for CSC files, largely just swapped "row" <> "col"
+
+[33mcommit d99adac1d40c515b81414c90dd2f4053b4ac33e5[m
+Author: Chase Szafranski <70776692+chasesza@users.noreply.github.com>
+Date:   Thu Feb 2 17:15:18 2023 -0500
+
+    Moved Core IO into a trait so different cores can be instantiated
+
+[33mcommit 187978031b32f3be3c7653cd6dd7a9496e1e732b[m
+Author: Chase Szafranski <70776692+chasesza@users.noreply.github.com>
+Date:   Tue Jan 31 16:39:02 2023 -0500
+
+    Added comments to parts that confused me
+
+[33mcommit 97e5ae2685a5bba005730aa5e6111a3b449d93cb[m[33m ([m[1;31morigin/HEAD[m[33m, [m[1;31morigin/DACGCN[m[33m, [m[1;32mDACGCN[m[33m, [m[1;32mCSC[m[33m)[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Sat Nov 19 11:03:39 2022 -0500
+
+    remove assertions
+
+[33mcommit 03c88c838247437e0945956fcf160e8f9354a766[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Fri Nov 18 19:45:46 2022 -0500
+
+    Bug Fix, but data aggregate does not work
+
+[33mcommit 007e7aef4ff379624bce0e0cc9460b8383b80233[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Thu Nov 17 21:23:00 2022 -0500
+
+    test pending
+
+[33mcommit a26f434cc66379a8941cf48c8e3c9a93984e25b2[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Thu Nov 17 18:13:36 2022 -0500
+
+    reset virtual row pointers and keep track of prev nz
+
+[33mcommit 08c58dfeac13bdd5bbeab5dcf6c242c8e28fcef3[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Thu Nov 17 18:09:56 2022 -0500
+
+    inst generator modify
+
+[33mcommit 8708ee929393bbcc94153c5b062d77044de3ba48[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Thu Nov 17 17:36:11 2022 -0500
+
+    bug fix across tiles
+
+[33mcommit af830c84e4fc0c4025016c85b6527d96c43e9be7[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Thu Nov 17 14:22:43 2022 -0500
+
+    Core state machine for multiple tiles
+
+[33mcommit 66b8e1a3252c60babcb883c39e2091dfe8ecb01a[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Wed Nov 16 18:48:22 2022 -0500
+
+    PR accumulator done by hardware. Works
+
+[33mcommit e1496c2dcc4e58cd2b95cccdee9aae2421b5f94f[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Wed Nov 16 14:22:07 2022 -0500
+
+    SPMM ISA, psum buffer, psum output. First working prototype works
+
+[33mcommit bf06acaa8cf53fdb7f5847557660de174b400151[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Wed Nov 16 13:36:27 2022 -0500
+
+    psum scratchpad added. Incomplete, rest works
+
+[33mcommit 8c30debdcd4e7403d31fcd6da67ae315e08f93df[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Wed Nov 16 10:53:20 2022 -0500
+
+    psum scratchpad, incomplete
+
+[33mcommit 5c659e763be6ec1836a23f15b9d9e3fa75898595[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Wed Nov 16 00:05:43 2022 -0500
+
+    No partial row. Rest works
+
+[33mcommit eb17f8f290b2dc5432619214509e19bc84222f43[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Tue Nov 15 20:23:07 2022 -0500
+
+    Compute refactoring done. Working
+
+[33mcommit 797067c46583998bcf28d8dc80ceae3f9ecb3011[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Mon Nov 14 11:34:00 2022 -0500
+
+    Group PE in progress
+
+[33mcommit 7c857543463182b0a56a0bc027e58bf23034e3f0[m
+Author: Sanjay Gandham <sgandham@Sanjays-MacBook-Pro.local>
+Date:   Sun Nov 13 19:45:20 2022 -0500
+
+    Group stage d1. testing pending
+
+[33mcommit bca866132ddc9f0f6cfd05d4affef16d6a8301e4[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sun Nov 13 15:59:48 2022 -0500
+
+    rowptr splitting one value at a time. Works
+
+[33mcommit 5ea7fc8e2db37674a998e997c1cb5eef42407933[m
+Author: Sanjay Gandham <sgandham@Sanjays-MacBook-Pro.local>
+Date:   Sun Nov 13 10:44:39 2022 -0500
+
+     PE, scratchpad and group refactoring incomplete
+
+[33mcommit 97dbf7fafefb789a8d4bf64a8adcbb300cd86401[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sat Nov 12 17:58:23 2022 -0500
+
+    Compute Refactoring partially workin
+
+[33mcommit 5bd927efc2d4e2e3625a3c9d052d46dc1216d7d4[m
+Author: Sanjay Gandham <sgandham@Sanjays-MacBook-Pro.local>
+Date:   Fri Nov 11 17:01:43 2022 -0500
+
+    Compute refactoring incomplete
+
+[33mcommit 3aa88e36e53290058b74a373071dbdf45cb3582e[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Fri Nov 11 14:40:17 2022 -0500
+
+    SPMM ISA modify, Compute refactoring incomplete
+
+[33mcommit dbd5df01cda5a26265ae92df9362e26fe7f9d9af[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Thu Nov 10 23:07:17 2022 -0500
+
+    merge conflicts
+
+[33mcommit 3572ad7eba4f4281d187fc2dbe79342a9865227f[m
+Author: Sanjay Gandham <sgandham@Sanjays-MacBook-Pro.local>
+Date:   Thu Nov 10 22:59:23 2022 -0500
+
+    Compute refactoring. Incomplete
+
+[33mcommit 89f103c14077a4b3341c3852f068ada93139f048[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Thu Nov 10 15:13:32 2022 -0500
+
+    global buffer simple write works
+
+[33mcommit 591b1c8371dcf027758227d9bb654c59a89eccdf[m
+Author: Sanjay Gandham <sgandham@Sanjays-MacBook-Pro.local>
+Date:   Thu Nov 10 14:38:07 2022 -0500
+
+    global buffer implementation. debug pending
+
+[33mcommit 109fef511ccf4b67b6e7fadd186d0887b3575f91[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Thu Nov 10 12:43:06 2022 -0500
+
+    global buffer
+
+[33mcommit 00a0b38fdddcbc89c39f3424decad7b778b20242[m
+Merge: 08af15e 3a74d69
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Thu Nov 10 11:55:45 2022 -0500
+
+    Merge branch 'DACGCN' of github.com:GandhamSanjay/GCN-Accelerator into DACGCN
+
+[33mcommit 08af15e77a71a7d95ff3c7beb931fc25f06d22ef[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Thu Nov 10 11:55:36 2022 -0500
+
+    Change architecture
+
+[33mcommit 3a74d69e0a9fb84900acb7f7ed2ffca7b444bc45[m
+Author: GandhamSanjay <61303395+GandhamSanjay@users.noreply.github.com>
+Date:   Thu Nov 10 11:54:47 2022 -0500
+
+    Update README.md
+
+[33mcommit c72647b9aa0df14cf3f66a46da022b7bccbd1264[m
+Author: GandhamSanjay <61303395+GandhamSanjay@users.noreply.github.com>
+Date:   Thu Nov 10 10:38:36 2022 -0500
+
+    Update README.md
+
+[33mcommit 4c86c35d8d6ef970374f9bd4300c785b4e5dd0d6[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Thu Nov 10 10:36:53 2022 -0500
+
+    Test changes
+
+[33mcommit d48c4e865b7c415de9c942bc1904928907cfa715[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Tue Nov 8 16:31:16 2022 -0500
+
+    Load bug fix
+
+[33mcommit 6258d079d6dfc15ca4806d0441f37af08f70ad9b[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Tue Nov 8 15:53:57 2022 -0500
+
+    More testcases capability
+
+[33mcommit 446c70ae9c45968f9f676a0421c1278f7b2ecb94[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Tue Nov 8 15:52:42 2022 -0500
+
+    Scratchpad write bug fixed
+
+[33mcommit 9570c2014534b7f537946397cc78384184718435[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Mon Nov 7 23:27:29 2022 -0500
+
+    psum scratchpad
+
+[33mcommit 1c839fe74edd06ecaba344ad1be72c4e62f7e71c[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Mon Nov 7 13:23:45 2022 -0500
+
+    PipelineCSR write address fixed. Compute complete
+
+[33mcommit dc7ca1e30aa19c10f760bedc1e58be1c3eb757a6[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sun Nov 6 20:24:40 2022 -0500
+
+    gitignore update
+
+[33mcommit 670a34faffc629ca916448d4e0f2f0b880bf0084[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sun Nov 6 20:22:20 2022 -0500
+
+    pipelined PE. Compute incomplete
+
+[33mcommit ef708052ab088db4f1a7c12ccdaab5de4965b0aa[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sat Nov 5 13:28:07 2022 -0400
+
+    Modify ram in scratchpad
+
+[33mcommit e3fe77360d84e0af892ef73289cfe262f1f0ecd7[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Fri Nov 4 19:28:17 2022 -0400
+
+    update gitignore
+
+[33mcommit 5161a448824caad602b2f5c50133b01065c3e779[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Fri Nov 4 17:21:58 2022 -0400
+
+    latest change to test
+
+[33mcommit ffaeeab89d2212a5da882942d10b506217ec0645[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Fri Nov 4 17:14:07 2022 -0400
+
+    compute done when pe out_q's are empty, store write address corrected
+
+[33mcommit 9103ae457e65dccae63ebaba76bc4705605e2b24[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Thu Nov 3 15:21:52 2022 -0400
+
+    add performance counters
+
+[33mcommit 817cf836baab2c2583385380c96db2acea39dfad[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Tue Nov 1 16:18:09 2022 -0400
+
+    PE cleanup, modify config fo first FPGA run
+
+[33mcommit af7fb2ea66ae1fed2c3debd817e4a7aa1dfb669c[m
+Merge: d7a3574 fdcb6c0
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Tue Nov 1 11:52:30 2022 -0400
+
+    Merge branch 'main' of github.com:GandhamSanjay/GCN-Accelerator into main
+
+[33mcommit d7a35746ded491ab601deaad265e7a4b075d5836[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Tue Nov 1 11:52:18 2022 -0400
+
+    ram instruction change
+
+[33mcommit fdcb6c0da00ce0d4dd80d6032f9e57a8ac764aab[m
+Author: GandhamSanjay <61303395+GandhamSanjay@users.noreply.github.com>
+Date:   Mon Oct 31 19:17:59 2022 -0400
+
+    Update README.md
+
+[33mcommit 7c3228c8e42a0c142a8c47343344d7827ad528d7[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Mon Oct 31 19:10:00 2022 -0400
+
+    store module/ISA/instructions work
+
+[33mcommit 6e62b2bfec0aa404d409454a5d88a8ce2c05ba1d[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Mon Oct 31 11:18:56 2022 -0400
+
+    Store module integrate with rest of the design
+
+[33mcommit 295682bbcdb238292e9cf144e4794cfb6e8d401f[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sat Oct 29 12:02:05 2022 -0400
+
+    comment util file
+
+[33mcommit 8e1ad608f0cda05b752a2c4c4773ba6d0ee03bf6[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sat Oct 29 12:01:27 2022 -0400
+
+    Move output scratchpad to global. Add util classes for RRArbiter
+
+[33mcommit 090eeaa93512f32fb9a2b76841b13e179989f913[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Fri Oct 28 21:00:32 2022 -0400
+
+    Implement output scratchpad in PE
+
+[33mcommit 08d0593a507e80b5142768750234b7077b410682[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Fri Oct 28 16:15:17 2022 -0400
+
+    PE refactoring done. Fixed row assignment (Works)
+
+[33mcommit 753a098019eea24ca12892b50534e2ece8b2c912[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Thu Oct 27 20:40:29 2022 -0400
+
+    Revert "PE refactoring, row mapping to pe fixed (Incomplete)"
+    
+    This reverts commit 76ef02c9b4f74331cd30ee4b55918ff6fd3c7116.
+
+[33mcommit 76ef02c9b4f74331cd30ee4b55918ff6fd3c7116[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Thu Oct 27 20:03:21 2022 -0400
+
+    PE refactoring, row mapping to pe fixed (Incomplete)
+
+[33mcommit 8eaa677c5af4e6cbfced1de8ed0bef13ec67b149[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Thu Oct 27 15:02:26 2022 -0400
+
+    PE refactoring (1/2): Works for 1 PE
+
+[33mcommit 19e9ece3010190d9c8124b5344c1d469b76c2a94[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Thu Oct 27 11:36:18 2022 -0400
+
+    PE refactoring(Incomplete)
+
+[33mcommit a566eebc34a01132c3e1bc574e68376bf3139d89[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Wed Oct 26 19:23:34 2022 -0400
+
+    PE refactoring(Incomplete)
+
+[33mcommit dbb77499374bb1a26a22c035f5ef532566d9b1d0[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Wed Oct 26 00:11:55 2022 -0400
+
+    PE refactoring (Incomplete)
+
+[33mcommit c8b612dc122709416d5d89f96fe1976e7c0cee05[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Tue Oct 25 19:25:27 2022 -0400
+
+    PE refactoring to new architecture (Incomplete)
+
+[33mcommit 4280597ab8095c2a9216271bc744deef45ee403b[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Tue Oct 25 15:10:20 2022 -0400
+
+    Update Readme
+
+[33mcommit 1059c8719c3d2641c40ba42af9c89b9e38e247f2[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Tue Oct 25 15:09:11 2022 -0400
+
+    Update Readme
+
+[33mcommit 80bcf3ec77269d9d2f1e88b64870b530aca8263b[m
+Merge: e2335f9 9c4ff76
+Author: GandhamSanjay <61303395+GandhamSanjay@users.noreply.github.com>
+Date:   Tue Oct 25 14:42:38 2022 -0400
+
+    Merge pull request #1 from GandhamSanjay/main
+    
+    Update README.md
+
+[33mcommit 9c4ff76015d69ca3391fd70314aef5ca26cfac94[m
+Author: GandhamSanjay <61303395+GandhamSanjay@users.noreply.github.com>
+Date:   Tue Oct 25 14:33:19 2022 -0400
+
+    Update README.md
+
+[33mcommit e2335f97eb8d8acf35d1008e745251720a71d32d[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Tue Oct 25 14:32:25 2022 -0400
+
+    Update Readme
+
+[33mcommit 570ca678d32126d8c2c3e81af5faf9b5b0ecc44c[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sun Oct 23 23:34:27 2022 -0400
+
+    DRAM init
+
+[33mcommit 765e1f9db9913e9ec87caea994ad865a04daf8ee[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sun Oct 23 23:33:32 2022 -0400
+
+    SPMM testing pending
+
+[33mcommit 14eceaa492bae84f7db7fe7eb713c55b622e8e50[m
+Merge: 6da8ebd 1cf1a9c
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sat Oct 22 18:10:08 2022 -0400
+
+    Merge branch 'main' of github.com:GandhamSanjay/GCN-Accelerator into main
+
+[33mcommit 6da8ebdd86a178ee54e5c3a89b435a8b702a2da4[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sat Oct 22 18:09:26 2022 -0400
+
+    minor modification
+
+[33mcommit 3e63ed50ad54ec5328722924a236fbe072923050[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sat Oct 22 18:08:26 2022 -0400
+
+    PE for CSR
+
+[33mcommit 88b028ed987cc84a8c32b3a2ed2911b1099ee041[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sat Oct 22 18:05:36 2022 -0400
+
+    load data_q.io.deq.ready fix
+
+[33mcommit 1cf1a9caf21c66745ecfaf89e10e65ae2855b5d0[m
+Author: GandhamSanjay <61303395+GandhamSanjay@users.noreply.github.com>
+Date:   Sat Oct 22 14:57:51 2022 -0400
+
+    Update README.md
+
+[33mcommit 51558fdd74e7809d28bc5113cd486200b868ffdc[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Fri Oct 21 19:50:16 2022 -0400
+
+    scratchpad fix
+
+[33mcommit 050d458902e16ff9e4528e49301ac6ad66acd002[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Fri Oct 21 19:49:35 2022 -0400
+
+    PE unfinished
+
+[33mcommit ea5dcc1c8e28af0c9edd2d20f78dc18b1b795ac8[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Fri Oct 21 18:48:33 2022 -0400
+
+    SpMM instruction added
+
+[33mcommit 4cb04181ad686bef1bf2d28ea5c49b6dde5d63ad[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Fri Oct 21 18:47:54 2022 -0400
+
+    SpMM decode/ISA, compute module data transfer queues, verified scratchpad
+
+[33mcommit 33e582e68b753a065203f37fc412683a6c5f0773[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Fri Oct 21 13:16:41 2022 -0400
+
+    test compute module
+
+[33mcommit bd97c4f3ce64e4f577bd9f0d953a4b3546fea97f[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Fri Oct 21 13:15:33 2022 -0400
+
+    Sequential execution in round robin load->compute->load...
+
+[33mcommit 68d2a65152316e57e5ddc2e36b1a5766f1c26028[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Thu Oct 20 18:57:20 2022 -0400
+
+    spmm inst in generator
+
+[33mcommit f563cda26a54964cbac6c76889bb95d10dbdbb50[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Thu Oct 20 18:56:52 2022 -0400
+
+    Compute ISA; Compute Module skeleton; scratchpad read non-banked
+
+[33mcommit 0094250e7b6c5ebf8c3ce8114cf40f1ace82dde0[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Thu Oct 20 15:37:08 2022 -0400
+
+    Add Scratchpad write logic and skeleton for banked reads
+
+[33mcommit a6bb166f050728026a49cb272654e18e417fa370[m
+Author: GandhamSanjay <sanjaygandham@knights.ucf.edu>
+Date:   Wed Oct 19 18:49:03 2022 -0400
+
+    Added Load data queue and scratchpad skeleton
+
+[33mcommit 5f196bef49b30a6377c6042543e1a0dc2a1ee652[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Wed Oct 19 00:02:18 2022 -0400
+
+    remove Wrapper.vcd and update ram
+
+[33mcommit 3bfb5535b31c7c507fd70676b57e3da439a17960[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Wed Oct 19 00:01:51 2022 -0400
+
+    Python script for instruction generation
+
+[33mcommit 0769bf283dc37ae3fe25578cc3ee5a9e086d96b6[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Wed Oct 19 00:00:34 2022 -0400
+
+    updated gitignore
+
+[33mcommit 37fdb7e68b1f652a861629be0b570d853504a1f0[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Tue Oct 18 23:59:17 2022 -0400
+
+    Add Load module with support for sequential load
+
+[33mcommit 2c0a2485cdf03c9cc16c6d8b63ce16c4787e0c6a[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Sun Oct 16 18:11:51 2022 -0400
+
+    ISA modified for load
+
+[33mcommit caa0e38f26f3dcf96cb22370116eb47acb6a122e[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Fri Oct 14 17:29:01 2022 -0400
+
+    cocoTB tests
+
+[33mcommit dceab69de0db1b66a873f4621acd7e71dada90de[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Fri Oct 14 17:23:55 2022 -0400
+
+    Add Fetch and part of decode
+
+[33mcommit 98541a3e1bb9453838868e3add594ab1d7b6e142[m
+Author: GandhamSanjay <61303395+GandhamSanjay@users.noreply.github.com>
+Date:   Thu Oct 13 14:17:39 2022 -0400
+
+    Update README.md
+
+[33mcommit c7401e598d35677ad60b5387a8b9425ad99bedc7[m
+Author: GandhamSanjay <61303395+GandhamSanjay@users.noreply.github.com>
+Date:   Thu Oct 13 14:14:22 2022 -0400
+
+    Update README.md
+
+[33mcommit c0d9d1f24396facae1e81e14d6e0d26e05ecbb3b[m
+Author: GandhamSanjay <61303395+GandhamSanjay@users.noreply.github.com>
+Date:   Wed Oct 12 09:44:03 2022 -0400
+
+    Update README.md
+
+[33mcommit b5e99fb6b8ea972830a9a865293d81784c8066e1[m
+Author: Sanjay Gandham <sanjaygandham@knights.ucf.edu>
+Date:   Wed Oct 12 09:42:16 2022 -0400
+
+    code organization, makefile and readme
+
+[33mcommit c304989c947f5714053714b74c2a9c6bda493e0e[m
+Author: Sanjay Gandham <sgandham@Sanjays-MacBook-Pro.local>
+Date:   Tue Oct 11 13:45:44 2022 -0400
+
+    Accelerator skeleton
+
+[33mcommit 67dd050a359bcb4bd2767839cf7143092b7d6eff[m
+Author: Sanjay Gandham <sgandham@Sanjays-MacBook-Pro.local>
+Date:   Tue Oct 11 12:13:25 2022 -0400
+
+    first commit

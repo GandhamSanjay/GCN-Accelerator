@@ -1,0 +1,29 @@
+[*]
+[*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
+[*] Thu Feb  9 16:12:31 2023
+[*]
+[dumpfile] "/home/chasesza/GCN-Accelerator/test/Wrapper.vcd"
+[dumpfile_mtime] "Thu Feb  9 16:03:16 2023"
+[dumpfile_size] 1186537
+[savefile] "/home/chasesza/GCN-Accelerator/test/RowIdxReadView.gtkw"
+[timestart] 280340
+[size] 1848 1136
+[pos] -1 -1
+*-11.000000 284010 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] Wrapper.
+[treeopen] Wrapper.core.
+[treeopen] Wrapper.core.compute.
+[sst_width] 233
+[signals_width] 321
+[sst_expanded] 1
+[sst_vpaned_height] 331
+@22
+Wrapper.core.compute.io_gbReadData_data[127:0]
+@28
+Wrapper.core.compute.groupSel[1:0]
+@22
+Wrapper.core.compute.rowReadBlockNum[31:0]
+@23
+Wrapper.core.compute.groupArray_0.io_spWrite_bits_spSel[4:0]
+[pattern_trace] 1
+[pattern_trace] 0

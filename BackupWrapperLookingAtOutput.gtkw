@@ -1,0 +1,51 @@
+[*]
+[*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
+[*] Fri Feb  3 21:18:53 2023
+[*]
+[dumpfile] "/home/chasesza/GCN-Accelerator/BackupWrapper.vcd"
+[dumpfile_mtime] "Thu Feb  2 21:44:19 2023"
+[dumpfile_size] 1153549
+[savefile] "/home/chasesza/GCN-Accelerator/BackupWrapperLookingAtOutput.gtkw"
+[timestart] 362590
+[size] 1848 1136
+[pos] -89 -89
+*-12.000000 377580 377580 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] Wrapper.
+[treeopen] Wrapper.core.
+[treeopen] Wrapper.core.compute.
+[sst_width] 233
+[signals_width] 478
+[sst_expanded] 1
+[sst_vpaned_height] 331
+@24
+Wrapper.core.compute.groupArray_1.spVal.io_spReadCmd_addr[31:0]
+Wrapper.core.compute.groupArray_1.spVal.io_spReadData_data[31:0]
+Wrapper.core.compute.groupArray_1.spDen.io_spReadCmd_0_addr[31:0]
+Wrapper.core.compute.groupArray_1.spDen.io_spReadData_0_data[31:0]
+@22
+Wrapper.core.compute.groupArray_1.m_mac_0[63:0]
+@24
+Wrapper.core.compute.groupArray_1.spDen.io_spReadCmd_1_addr[31:0]
+Wrapper.core.compute.groupArray_1.spDen.io_spReadData_1_data[31:0]
+@22
+Wrapper.core.compute.groupArray_1.m_mac_1[63:0]
+Wrapper.core.compute.groupArray_1.spOut.io_spWrite_addr[31:0]
+Wrapper.core.compute.groupArray_1.spOut.io_spWrite_data[63:0]
+@24
+Wrapper.core.compute.groupArray_1.spOut.io_writeEn
+@22
+Wrapper.core.compute.groupArray_0.m_mac_0[63:0]
+Wrapper.core.compute.groupArray_0.m_mac_1[63:0]
+Wrapper.core.compute.groupArray_0.spOut.io_spWrite_addr[31:0]
+Wrapper.core.compute.groupArray_0.spOut.io_spWrite_data[63:0]
+@28
+Wrapper.core.compute.groupArray_0.spOut.io_writeEn
+Wrapper.core.compute.isPR
+Wrapper.core.compute.isVR
+@22
+Wrapper.core.compute.io_spOutWrite_bits_data[63:0]
+Wrapper.core.compute.io_spOutWrite_bits_addr[31:0]
+@29
+Wrapper.core.compute.io_spOutWrite_valid
+[pattern_trace] 1
+[pattern_trace] 0
