@@ -6,7 +6,7 @@ TOPLEVEL_LANG ?= verilog
 
 #VERILOG_SOURCES += $(PWD)/mux.v
 #VERILOG_SOURCES += /home/$(USER)/research/atom/hardware/verilog/Template.v
-VERILOG_SOURCES += /home/$(USER)/research/GCN-Accelerator/hardware/verilog/*.v
+VERILOG_SOURCES += /home/$(USER)/GCN-Accelerator/hardware/verilog/*.v
 # use VHDL_SOURCES for VHDL files
 
 # EXTRA_ARGS += --trace --trace-structs

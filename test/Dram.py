@@ -35,11 +35,14 @@ class data:
         print(f"\nDense matrix is = \n{W}")
         O = np.matmul(I,W)
         print(f"\nOutput matrix is = \n{O}")
+        np.set_printoptions(formatter={'int':hex})
+        print(f"\nOutput matrix hex is = \n{O}")
         return ((val,col,row), I, W, O)
 
-
+ 
 np.random.seed(0)
 dataGen = data()
+
 I = np.array([[0, 11, 0, 0],
             [22, 0, 0, 33],
             [0, 0, 0, 0],
@@ -56,7 +59,55 @@ den = np.array([[2, 2],
             [1, 3],
             [3, 1],
             [1, 2]])
-# ((val,col,row), I, den, O) = dataGen.randSP(spDim = (8,8), denDim = (8,4))
+
+
+#I = np.array([[0, 11, 0, 0],
+#            [22, 0, 0, 33],
+#            [0, 0, 0, 0],
+#            [0, 44, 0, 0]])
+#W = np.array([[2, 2],
+#            [1, 3],
+#            [3, 1],
+#            [1, 2]])
+#O = np.matmul(I,W)
+#val = np.array([11,22,33,44])
+#col = np.array([1,0,3,1])
+#row = np.array([0,1,3,3,4])
+#den = np.array([[2, 2, 6, 7],
+#            [1, 3, 6, 7],
+#            [3, 1, 6, 7],
+#            [1, 2, 6, 7]])
+
+#I = np.array([[0, 1, 2, 3, 4, 5, 6, 7],
+#            [0, 0, 0, 0, 0, 0, 0, 0],
+#            [0, 0, 0, 0, 0, 0, 0, 0],
+#            [0, 0, 0, 0, 0, 0, 0, 0],
+#            [0, 0, 0, 0, 0, 0, 0, 0],
+#            [0, 0, 0, 0, 0, 0, 0, 0],
+#            [0, 0, 0, 0, 0, 0, 0, 0],
+#            [0, 0, 0, 0, 0, 0, 0, 0]])
+#W = np.array([[2, 2],
+#            [1, 3],
+#            [3, 1],
+#            [4, 4],
+#            [5, 5],
+#            [6, 6],
+#            [7, 7],
+#            [1, 2]])
+#O = np.matmul(I,W)
+#val = np.array([0,1,2,3,4,5,6,7])
+#col = np.array([0,1,2,3,4,5,6,7])
+#row = np.array([0,8,8,8,8,8,8,8,8])
+#den = np.array([[2, 2],
+#            [1, 3],
+#            [3, 1],
+#            [4, 4],
+#            [5, 5],
+#            [6, 6],
+#            [7, 7],
+#            [1, 2]])
+
+((val,col,row), I, den, O) = dataGen.randSP(spDim = (16,16), denDim = (16,8))
 (_,x) = den.shape
 (y,_) = I.shape
 rowBin = dataGen.arrayToBinary(row)

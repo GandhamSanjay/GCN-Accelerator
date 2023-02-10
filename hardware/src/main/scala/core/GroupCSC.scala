@@ -234,7 +234,7 @@ class GroupCSC(val groupID: Int = 0)(implicit p: Parameters) extends Module with
   d2_colPtr1Data_q := d2_colPtr1Data
   d2_colPtr2Data_q := d2_colPtr2Data
   d2_currColPtr_q := d2_currColPtr
-  spRow.io.spReadCmd.addr := (d2_currColPtr << log2Ceil(blockSizeBytes))
+  //spRow.io.spReadCmd.addr := (d2_currColPtr << log2Ceil(blockSizeBytes))
   val d2_endOfCol = (d2_currColPtr === (d2_colPtr2Data - 1.U))
   val d2_emptyCol = (d2_currColPtr === d2_colPtr2Data)
   d2_endOfCol_q := d2_endOfCol
@@ -260,7 +260,7 @@ class GroupCSC(val groupID: Int = 0)(implicit p: Parameters) extends Module with
   // In the CSR version we accessed a dense row based on the column index. We still need to do that,
   // but the column index is now based on the pointer accesses instead of being directly read from an array
   // The colPtrOffset accounts for the parts of the colPtr that are in other groups, and for the virtual column pointers
-  val dr_rowIdx = RegNext(d2_colNum_q) + colPtrOffset
+  val dr_rowIdx = RegNext(d2_colNum_q + colPtrOffset)
   val dr_outWrite_q = RegEnable(d2_endOfCol_q, dr_valid_q)
   val dr_outWriteEmptyCol_q = RegEnable(d2_emptyCol_q, dr_valid_q)
   val dr_isNewOutput_q = RegEnable(d2_isNewOutput_q, dr_valid_q)
