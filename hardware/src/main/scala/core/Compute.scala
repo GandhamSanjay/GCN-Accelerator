@@ -5,6 +5,7 @@ import chisel3.util._
 import vta.util.config._
 import scala.math._
 import gcn.core.util._
+import chisel3.util.experimental.group
 // /** Compute.
 //  *
 //  * Takes instructions from fetch module. Schedules computation between PEs.
@@ -13,8 +14,9 @@ import gcn.core.util._
 class PRTableEntry()(implicit p: Parameters) extends Bundle{
   val mp = p(AccKey).memParams
   val cp = p(AccKey).coreParams
-  val nRows = UInt(32.W)
+  val nPartialRows = UInt(32.W)
   val isPRWithPrevGroup = Bool()
+  val isPRWithNextGroup = Bool()
 }
 class PRTableEntryWithGroup()(implicit p: Parameters) extends Bundle{
   val mp = p(AccKey).memParams
@@ -46,20 +48,9 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
   val dec = Module(new ComputeDecode)
-  val pRTable = SyncReadMem(cp.nGroups, new PRTableEntry)
-  val pRTableReadGroup_q = RegInit(0.U(log2Ceil(cp.nGroups).W))
-  val pRTableReadGroup = Wire(chiselTypeOf(pRTableReadGroup_q))
-  val pRTableReadData = pRTable.read(pRTableReadGroup, true.B)
   val groupArray = for(i <- 0 until cp.nGroups) yield {
     Module(new Group(groupID = i))
   }
-
-val prArbiter = Module(new Arbiter(new PRTableEntryWithGroup, cp.nGroups))
-prArbiter.io.out.ready := true.B
-when(prArbiter.io.out.valid){
-  pRTable.write(prArbiter.io.out.bits.group,prArbiter.io.out.bits.PRTableEntry)
-}
-
 
 // state machine
   val sIdle :: sDataMoveRow :: sDataMoveCol :: sDataMoveVal :: sDataMoveDen :: sCompute :: sCombineGroup :: sCombine :: sDone :: Nil = Enum(9)
@@ -88,7 +79,10 @@ when(prArbiter.io.out.valid){
   val rowPtrIdxInBlock = rowPtrAddr(log2Ceil(bankBlockSizeBytes)-1,log2Ceil(cp.blockSize/8))
   val rowPtrData = MuxTree(rowPtrIdxInBlock, rowPtrDataBlock)
   val rowPtrReadAddr = Mux(start, dec.io.sramPtr, Mux(rowPtrFin, rowPtrAddr, rowPtrAddr + (cp.blockSize/8).U)) 
-  rowPtrFin := rowPtrData >= (nNonZeroPrevTotal + (( groupSel + 1.U) << Log2(nNonZeroPerGroup)))
+  val rowPtrFinComparison = (nNonZeroPrevTotal + (( groupSel + 1.U) << Log2(nNonZeroPerGroup)))
+  rowPtrFin := rowPtrData >= rowPtrFinComparison
+  // Checks whether the final row in the group is a partial row
+  val rowPtrIsPartialRow = rowPtrData > rowPtrFinComparison
   val rowPtrWriteAddr = RegInit(0.U(C_SRAM_OFFSET_BITS.W))
   when(state === sDataMoveRow){
     when(rowPtrFin){
@@ -97,12 +91,12 @@ when(prArbiter.io.out.valid){
       rowPtrWriteAddr := rowPtrWriteAddr + (cp.blockSize/8).U
     }
   }
-  // val rowPtrWriteMask = UIntToOH(rowPtrIdxInBlock)
   val rowPtrWriteEn = !rowPtrFin && (state === sDataMoveRow)
   val nRowWritten_q = RegInit(0.U(32.W))
   val nRowWritten =  nRowWritten_q + !rowPtrFin
   val nRowWrittenValid = Wire(Bool())
-  
+  val rowOffset_q = RegInit(0.U(32.W))
+
   // Col Splitting
   val colReadAddr = RegInit(0.U(32.W))
   val colWriteAddr = RegInit(0.U(32.W))
@@ -159,6 +153,7 @@ when(prArbiter.io.out.valid){
 
 // group select
   when((((state === sDataMoveRow) && rowPtrFin)||(state === sDataMoveCol) && colFin)||((state === sDataMoveVal) && valFin)){
+    rowOffset_q := rowOffset_q + (nRowWritten_q - rowPtrIsPartialRow)
     when(groupEnd){
       groupSel := 0.U
       nRowWritten_q := 0.U
@@ -184,78 +179,118 @@ when(prArbiter.io.out.valid){
         ((state === sDataMoveDen)) -> denReadAddr
       ))
 
+// Output arbiter
+val outputArbiter = Module(new MyRRArbiter(new SPWriteCmd, cp.nGroups + 1))
 
-// Partial outputs aggregate 
-val outRowCount_q = RegInit(0.U(32.W))
-val aggDone = pRTableReadGroup_q === (cp.nGroups - 1).U
-val currRowInGroup_q = RegInit(0.U(32.W))
-val currRowInGroup = Wire(chiselTypeOf(currRowInGroup_q))
-val nRowInGroup = pRTableReadData.nRows
-val isPR = pRTableReadData.isPRWithPrevGroup
-val groupOutAddr = currRowInGroup << log2Ceil((cp.blockSize * cp.nColInDense)/8)
-val groupOutData = Wire(chiselTypeOf(groupArray(0).io.outReadData))
-val groupOutDataPrev = RegEnable(groupOutData, state === sCombine)
-val aggWithPrevGroup = ((currRowInGroup_q === 0.U) && isPR)
-val outDataAgg = groupOutData.map(_.data).zip(groupOutDataPrev.map(_.data)).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
-val prData_q = Reg(chiselTypeOf(outDataAgg))
-val prSplitData = for(i <- 0 until cp.nColInDense)yield{
-  prData_q(((i+1)*cp.blockSize) -1, i*cp.blockSize)
-}
-val prStartRow = (state === sCombine) && (currRowInGroup_q === 0.U) && (pRTableReadGroup_q === 0.U)
-val outDataPrAgg = groupOutData.map(_.data).zip(prSplitData).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
-val outDataNoAgg = groupOutData.map(_.data).reverse.reduce(Cat(_,_))
-val outData = Mux(aggWithPrevGroup, outDataAgg, outDataNoAgg)
+//Output connections
+io.spOutWrite <> outputArbiter.io.out
 
-val outpRCount_q = RegInit(0.U(32.W))
-val outpRCount = Mux(state === sCombine && (RegNext(state)===sCombineGroup), outpRCount_q + isPR.asUInt, outpRCount_q)
-when(state === sCombine && (RegNext(state)===sCombineGroup)){
-  outpRCount_q := outpRCount
-}.elsewhen(state === sIdle){
-  outpRCount_q := 0.U
-}
+
+// Partial output aggregation
+
+val aggGroup = RegInit(0.U(log2Ceil(cp.nGroups).W))
+val sAggPrev :: sAggNext :: Nil = Enum(2)
+val aggState = RegInit(sAggNext)
+
+val prSeq = groupArray.map(_.io.prEntry)
+
+val aggPRTable = MuxTree(aggGroup, groupArray.map(_.io.prEntry.bits))
+val prWithPrev = MuxTree(aggGroup, groupArray.map(_.io.partialRowWithPrev))
+val prWithNext = MuxTree(aggGroup, groupArray.map(_.io.partialRowWithNext))
+
+dontTouch(prWithPrev)
+dontTouch(prWithNext)
+
+for (i <- 0 until cp.nGroups){groupArray(i).io.prEntry.ready := false.B}
+
+val aggBuffer = Reg(chiselTypeOf(groupArray(0).io.partialRowWithPrev.data))
+val aggAddressBuffer = Reg(chiselTypeOf(groupArray(0).io.partialRowWithPrev.address))
+
+val aggBufferSeq = for(i <- 0 until cp.nGroups)yield{aggBuffer(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
+val prWithPrevSeq = for(i <- 0 until cp.nGroups)yield{prWithPrev.data(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
+
+val aggBufferPlusPRWithPrev = aggBufferSeq.zip(prWithPrevSeq).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
+val aggDone = Wire(Bool())
+
+val aggQueue = Module(new Queue(new SPWriteCmd, cp.aggregationBufferDepth))
+
+
+aggQueue.io.enq.bits.data := aggBufferPlusPRWithPrev
+aggQueue.io.enq.bits.addr := prWithPrev.address
+
+// Arbiter connection to partial row aggregation output
+outputArbiter.io.in(cp.nGroups) <> aggQueue.io.deq
+
+
+
 when(state === sCombine){
-  outRowCount_q := outRowCount_q + 1.U
-}.elsewhen(state === sIdle){
-  outRowCount_q := 0.U
-}
-val outWriteAddr = (outRowCount_q - outpRCount) << log2Ceil((cp.blockSize * cp.nColInDense)/8)
-currRowInGroup := Mux(state === sCombine, currRowInGroup_q + 1.U, currRowInGroup_q)
-val outWriteEn = state === sCombine
-when((state === sCompute)){
-  pRTableReadGroup_q := 0.U
-}.elsewhen(((state === sCombine) || (state === sCombineGroup)) && (currRowInGroup === nRowInGroup)){
-  pRTableReadGroup_q := pRTableReadGroup_q + 1.U
-}
+  // Defaults
+  aggDone := false.B
+  aggQueue.io.enq.valid := false.B
 
-when(state === sCombine){
-  when(currRowInGroup === (nRowInGroup)){
-    currRowInGroup_q := 0.U
-  }.otherwise{
-    currRowInGroup_q := currRowInGroup
+  when(aggState === sAggNext){
+
+    // Store data and increment group
+    aggBuffer := prWithNext.data
+    aggGroup := aggGroup + 1.U
+
+    // Skip sAggPrev stage if there isn't a partial row between the groups
+    when(aggPRTable.isPRWithNextGroup){
+      aggState := sAggPrev
+    }.otherwise{
+      aggState := sAggNext
+    }
+  }.elsewhen(aggState === sAggPrev){
+
+    // When this group has a single partial row that extends from the previous group to the next group
+    when (aggPRTable.isPRWithNextGroup && (aggPRTable.nPartialRows === 1.U)){
+      aggState := sAggPrev
+      aggBuffer := aggBufferPlusPRWithPrev
+
+      aggGroup := aggGroup + 1.U
+      when(aggGroup === (cp.nGroups-1).U){
+        aggDone := true.B
+      }
+    
+
+    // Send the output to the queue it is ready, stall if it is not ready
+    }.elsewhen(aggQueue.io.enq.ready){
+
+      aggQueue.io.enq.valid := true.B
+
+      aggState := sAggNext
+
+      when (!aggPRTable.isPRWithNextGroup){
+        aggGroup := aggGroup + 1.U
+        when(aggGroup === (cp.nGroups-1).U){
+          aggDone := true.B
+        }
+      }
+    }
   }
+}.otherwise{
+  aggGroup := 0.U
+  aggState := sAggNext
+  aggDone := false.B
+  aggQueue.io.enq.valid := false.B
 }
-pRTableReadGroup := Mux(((state === sCombine) || (state === sCombineGroup)) && (currRowInGroup === nRowInGroup),pRTableReadGroup_q + 1.U,pRTableReadGroup_q)
-
-io.spOutWrite.bits.addr := outWriteAddr
-io.spOutWrite.bits.data := outData
-io.spOutWrite.valid := outWriteEn
 
 // group io
   for(i <- 0 until cp.nGroups){
-    groupArray(i).io.outReadCmd.map(_.addr := groupOutAddr)
-    groupOutData := MuxTree(pRTableReadGroup_q, groupArray.map(_.io.outReadData))
+
+    outputArbiter.io.in(i) <> groupArray(i).io.outputBufferWriteData
     groupArray(i).io.nRowPtrInGroup.bits := nRowWritten
     groupArray(i).io.nRowPtrInGroup.valid := (nRowWrittenValid && groupSel === i.U)
-    prArbiter.io.in(i).bits.PRTableEntry := groupArray(i).io.prEntry.bits
-    prArbiter.io.in(i).bits.group := i.U
-    prArbiter.io.in(i).valid := groupArray(i).io.prEntry.valid
-    prArbiter.io.in(i).ready <> groupArray(i).io.prEntry.ready
     groupArray(i).io.nNonZero.bits := nNonZeroPerGroup
     groupArray(i).io.nNonZero.valid := start
     groupArray(i).io.start := (state === sCompute)
     groupArray(i).io.ptrSpWrite.bits.addr :=  rowPtrWriteAddr
     groupArray(i).io.ptrSpWrite.valid :=  rowPtrWriteEn && (groupSel === i.U)
     groupArray(i).io.ptrSpWrite.bits.data := rowPtrData
+    groupArray(i).io.isPRWithNextGroup.valid := (state === sDataMoveRow) && (groupSel === i.U)
+    groupArray(i).io.isPRWithNextGroup.bits := rowPtrIsPartialRow
+    groupArray(i).io.rowOffset.bits := rowOffset_q
+    groupArray(i).io.rowOffset.valid := (state === sDataMoveRow) && (groupSel === i.U)
     groupArray(i).io.spWrite.bits.spSel :=     
       MuxLookup(state,
       0.U, // default
@@ -299,6 +334,7 @@ io.done := (state === sIdle) && !start
 //state machine
   switch(state){
     is(sIdle){
+      rowOffset_q := 0.U
       when(start){
         state := sDataMoveRow
         colReadAddr := dec.io.sramCol
@@ -357,7 +393,7 @@ io.done := (state === sIdle) && !start
         computeTimer := computeTimer + 1.U
       }
       when(computeDone){
-        state := sCombineGroup
+        state := sCombine//Group
         denseLoaded := true.B
       }.elsewhen(denseLoaded){
         when(computeTimer === computeTimeOut){
@@ -367,20 +403,9 @@ io.done := (state === sIdle) && !start
         }
       }
     }
-    is(sCombineGroup){
-      when(nRowInGroup === 0.U){
-        state := sCombineGroup
-      }.otherwise{
-        state := sCombine
-      }
-    }
     is(sCombine){
-      when(currRowInGroup_q === (nRowInGroup - 1.U)){
-        when(aggDone){
-          state := sIdle
-        }.otherwise{
-          state := sCombineGroup
-        }
+      when (aggDone){
+        state := sIdle
       }
     }
   }
