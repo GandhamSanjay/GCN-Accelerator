@@ -206,8 +206,8 @@ for (i <- 0 until cp.nGroups){groupArray(i).io.prEntry.ready := false.B}
 val aggBuffer = Reg(chiselTypeOf(groupArray(0).io.partialRowWithPrev.data))
 val aggAddressBuffer = Reg(chiselTypeOf(groupArray(0).io.partialRowWithPrev.address))
 
-val aggBufferSeq = for(i <- 0 until cp.nGroups)yield{aggBuffer(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
-val prWithPrevSeq = for(i <- 0 until cp.nGroups)yield{prWithPrev.data(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
+val aggBufferSeq = for(i <- 0 until cp.nColInDense)yield{aggBuffer(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
+val prWithPrevSeq = for(i <- 0 until cp.nColInDense)yield{prWithPrev.data(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
 
 val aggBufferPlusPRWithPrev = aggBufferSeq.zip(prWithPrevSeq).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
 val aggDone = Wire(Bool())
@@ -233,6 +233,9 @@ when(state === sCombine){
     // Store data and increment group
     aggBuffer := prWithNext.data
     aggGroup := aggGroup + 1.U
+    when(aggGroup === (cp.nGroups-1).U){
+      aggDone := true.B
+    }
 
     // Skip sAggPrev stage if there isn't a partial row between the groups
     when(aggPRTable.isPRWithNextGroup){
