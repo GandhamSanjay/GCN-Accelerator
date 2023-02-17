@@ -42,7 +42,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     val ptrSpWrite = Flipped(Decoupled(new SPWriteCmd(mode = "single")))
     val nNonZero = Flipped(ValidIO(UInt(32.W)))
     val isPRWithNextGroup = Flipped(ValidIO(Bool()))
-    val prEntry = Decoupled(new PRTableEntry)
+    val prEntry = Output(new PRTableEntry)
     val start = Input(Bool())
     val done = Output(Bool())
     val outputBufferWriteData = Decoupled(new SPWriteCmd)
@@ -69,8 +69,8 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     rowPtrEnd := totalNonZero + (io.nNonZero.bits << log2Ceil(cp.nGroups))
   }
   val d1_rowPtrAddr = Wire(UInt(32.W))
-  val prQueue = Module(new Queue(new PRTableEntry, 1)) 
-  prQueue.io.deq <> io.prEntry
+  //val prQueue = Module(new Queue(new PRTableEntry, 4)) 
+ // prQueue.io.deq <> io.prEntry
   
   // ScratchPads
   val spVal = Module(new Scratchpad(scratchType = "Val", masked = false))
@@ -226,11 +226,19 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val d1_currRowPtr = d1Queue.io.deq.bits.rowPtr1Data
   val d1_currDenCol = 0.U(cp.blockSize.W)
   val decompressDone = ((d1_state_q === sIdle) && ((d1_statePrev_q === sRowPtr2) || ((pulse) && rowPtrSize === 0.U) || (d1_statePrev_q === sRowPtr1)))
+  
+  
+  /*
   prQueue.io.enq.valid := RegNext(decompressDone)
   prQueue.io.enq.bits.isPRWithPrevGroup := isPRWithPrevGroup_q
   prQueue.io.enq.bits.isPRWithNextGroup := isPRWithNextGroup
   //prQueue.io.enq.bits.nPartialRows := d1_numRow
   prQueue.io.enq.bits.nPartialRows := Mux(rowPtrSize === 0.U, (isPRWithNextGroup || isPRWithPrevGroup_q) , isPRWithNextGroup +& isPRWithPrevGroup_q)
+*/
+  val prEntryValid = RegNext(decompressDone)
+  io.prEntry.isPRWithPrevGroup := RegEnable(isPRWithPrevGroup_q, prEntryValid)
+  io.prEntry.isPRWithNextGroup := RegEnable(isPRWithNextGroup, prEntryValid)
+  io.prEntry.nPartialRows := RegEnable(Mux(rowPtrSize === 0.U, (isPRWithNextGroup || isPRWithPrevGroup_q) , isPRWithNextGroup +& isPRWithPrevGroup_q), prEntryValid)
 
   /* Pipeline Stage: D2
   Cycles = 1
@@ -353,7 +361,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   outBuff.io.enq.bits.data := formattedOutput
   outBuff.io.enq.bits.addr := rowAddress
   outBuff.io.enq.valid := writeResult && !dr_isPR_q
-  assert(outBuff.io.enq.ready === true.B)
+  assert(outBuff.io.enq.ready === true.B, "ERROR: Group #" + groupID.toString() + "output buffer full!")
 
   outBuff.io.deq <> io.outputBufferWriteData
 

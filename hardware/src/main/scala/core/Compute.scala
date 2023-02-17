@@ -83,6 +83,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   rowPtrFin := rowPtrData >= rowPtrFinComparison
   // Checks whether the final row in the group is a partial row
   val rowPtrIsPartialRow = rowPtrData > rowPtrFinComparison
+  val firstRowPtrOutsideOfBounds = RegEnable(rowPtrIsPartialRow || (groupSel === 0.U), rowPtrFin === 0.U)
   val rowPtrWriteAddr = RegInit(0.U(C_SRAM_OFFSET_BITS.W))
   when(state === sDataMoveRow){
     when(rowPtrFin){
@@ -153,7 +154,8 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
 
 // group select
   when((((state === sDataMoveRow) && rowPtrFin)||(state === sDataMoveCol) && colFin)||((state === sDataMoveVal) && valFin)){
-    rowOffset_q := rowOffset_q + (nRowWritten_q - rowPtrIsPartialRow)
+    // row offset = row offset + nRowWritten + 1 (since it starts at 0) - the bounds that don't count
+    rowOffset_q := rowOffset_q  + (nRowWritten_q + 1.U -& firstRowPtrOutsideOfBounds -& rowPtrIsPartialRow)
     when(groupEnd){
       groupSel := 0.U
       nRowWritten_q := 0.U
@@ -194,25 +196,27 @@ val aggState = RegInit(sAggNext)
 
 val prSeq = groupArray.map(_.io.prEntry)
 
-val aggPRTable = MuxTree(aggGroup, groupArray.map(_.io.prEntry.bits))
+val aggPRTable = MuxTree(aggGroup, groupArray.map(_.io.prEntry))
 val prWithPrev = MuxTree(aggGroup, groupArray.map(_.io.partialRowWithPrev))
 val prWithNext = MuxTree(aggGroup, groupArray.map(_.io.partialRowWithNext))
 
 dontTouch(prWithPrev)
 dontTouch(prWithNext)
 
-for (i <- 0 until cp.nGroups){groupArray(i).io.prEntry.ready := false.B}
+//for (i <- 0 until cp.nGroups){groupArray(i).io.prEntry.ready := false.B}
 
 val aggBuffer = Reg(chiselTypeOf(groupArray(0).io.partialRowWithPrev.data))
 val aggAddressBuffer = Reg(chiselTypeOf(groupArray(0).io.partialRowWithPrev.address))
 
-val aggBufferSeq = for(i <- 0 until cp.nColInDense)yield{aggBuffer(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
-val prWithPrevSeq = for(i <- 0 until cp.nColInDense)yield{prWithPrev.data(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
+val aggBufferSeq = for(i <- 0 until cp.nPE)yield{aggBuffer(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
+val prWithPrevSeq = for(i <- 0 until cp.nPE)yield{prWithPrev.data(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
 
 val aggBufferPlusPRWithPrev = aggBufferSeq.zip(prWithPrevSeq).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
 val aggDone = Wire(Bool())
 
 val aggQueue = Module(new Queue(new SPWriteCmd, cp.aggregationBufferDepth))
+
+assert(aggQueue.io.enq.ready === true.B, "ERROR: Aggregation queue full!")
 
 
 aggQueue.io.enq.bits.data := aggBufferPlusPRWithPrev
