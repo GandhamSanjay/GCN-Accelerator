@@ -4,6 +4,7 @@ from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
 import logging, mmap
 from cocotbext.axi import AxiBus, AxiLiteBus, AxiLiteMaster, AxiRam
+import numpy as np
 
 class TB(object):
     def __init__(self, dut):
@@ -22,6 +23,10 @@ class TB(object):
          
         # self.axi_ram = AxiRam(AxiBus.from_prefix(self.dut, "m_axi_gmem"), dut.ap_clk, size=2**16)
         # self.init_ram()
+        self.outputPtr = 0
+        self.nDenseCols = 0
+        self.sparseRows = 0
+        self.load_result_matrix()
 
 	#start the clock as a parallel process.
         cocotb.start_soon(Clock(self.dut.ap_clk, 4, units="ns").start())
@@ -50,9 +55,23 @@ class TB(object):
                 self.memory.write(byte)
                 addr = addr + 1
                 str = f.read(8)
-                
         finally:
             f.close()
+
+    def load_result_matrix(self):
+        infile = open('output_matrix.txt','r')
+        O = np.loadtxt(infile)
+        infile.close()
+        metaDataF = open('metaData.txt','r')
+        self.outputPtr = int(metaDataF.readline(),10)
+        self.sparseRows = int(metaDataF.readline(),10)
+        self.nDenseCols = int(metaDataF.readline(),10)
+        metaDataF.close()
+        addr = self.outputPtr
+        self.memory.seek(addr)
+        for row in O:
+            for value in np.flip(row):
+                self.memory.write(int(value).to_bytes(4,'big'))
 
     async def launch(self, inst_cnt, b_addr = 0x00000000):
         await Timer(20, units='ns')
@@ -60,12 +79,23 @@ class TB(object):
         await self.axi_master.write_dwords(0x0008, [inst_cnt], byteorder = 'little')
         await self.axi_master.write_dwords(0x0000, [1], byteorder = 'little')
 
+#@cocotb.test()
+#async def verify_output(dut, tb):
+#    await RisingEdge(dut.core_clk)
+#    if (dut.core.outputScratchpad_io_writeEn and dut.core.outputScratchpad_io_spWrite_addr >= tb.outputPtr):
+#        tb.memory.seek(dut.core.outputScratchpad_io_spWrite_addr)
+#        numpyVal = tb.memory.read(16)
+#        assert(numpyVal == tb.memory.seek)
+
+
 @cocotb.test()
 async def my_first_test(dut):
     """Try accessing the design."""
     tb = TB(dut)
     await tb.launch(inst_cnt = 12)
     addr = 0x000c
+
+    #cocotb.start(verify_output(dut, tb))
     # while((await tb.axi_master.read_dwords(addr,1))[0] == 0):
     #     await Timer(1, units='ns')
     # print("*********************************Execution Metrics*******************************")
@@ -87,4 +117,31 @@ async def my_first_test(dut):
     #     addr = addr + 0x0004
     #     print(f"PE time = {await tb.axi_master.read_dwords(addr,1)}")
     #     addr = addr + 0x0004
-    await Timer(10, units='us')
+
+    numWritten = 0
+    errorCount = 0
+
+    for i in range(5000):
+        await RisingEdge(dut.core_clock)
+
+        # Monitor Output Scratchpad
+        if (dut.core.outputScratchpad_io_writeEn.value):
+            numWritten = numWritten + 1
+            tb.memory.seek(dut.core.outputScratchpad_io_spWrite_addr.value + tb.outputPtr)
+            numpyVals = tb.memory.read(tb.nDenseCols * 4)
+            bitStr = ''
+            for num in numpyVals:
+                bitStr =  bitStr + format(num, '08b')
+                #print(format(num, '08b'))
+            if bitStr != str(dut.core.outputScratchpad_io_spWrite_data.value):
+                print("Address: " + str(int(dut.core.outputScratchpad_io_spWrite_addr.value)))
+                print("NumPy:\t" + str(bitStr) + "\nDut:\t"+str(dut.core.outputScratchpad_io_spWrite_data.value))
+                errorCount = errorCount + 1
+            assert(bitStr == str(dut.core.outputScratchpad_io_spWrite_data.value))
+
+    #print("There were " + str(errorCount) + " invalid outputs\n")
+    if (numWritten != tb.sparseRows):
+        print(str(numWritten) + " rows were written. The output should have had " + str(tb.sparseRows) + " rows\n")
+    assert(numWritten == tb.sparseRows)
+
+    #await Timer(10, units='us')
