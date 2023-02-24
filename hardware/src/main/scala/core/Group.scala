@@ -103,8 +103,8 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   d1Queue.io.enq.bits.rowPtr2Data := d1_rowPtr2Data_q
   d1Queue.io.enq.valid := d1_reqValid_q
 
-  when((d1_state_q === sRowPtr2) && !rowPtrDone){
-    d1_numRowPtr_q := d1_numRowPtr_q + 2.U
+  when((d1_state_q === sRowPtr2 || d1_state_q === sRowPtr1) && !rowPtrDone){
+    d1_numRowPtr_q := d1_numRowPtr_q + 1.U
   }.elsewhen(d1_state_q === sIdle){
     d1_numRowPtr_q := 0.U
   }
