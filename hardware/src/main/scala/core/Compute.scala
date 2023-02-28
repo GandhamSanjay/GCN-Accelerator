@@ -181,12 +181,6 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
         ((state === sDataMoveDen)) -> denReadAddr
       ))
 
-// Output arbiter
-val outputArbiter = Module(new MyRRArbiter(new SPWriteCmd, cp.nGroups + 1))
-
-//Output connections
-io.spOutWrite <> outputArbiter.io.out
-
 
 // Partial output aggregation
 
@@ -222,8 +216,22 @@ assert(aggQueue.io.enq.ready === true.B, "ERROR: Aggregation queue full!")
 aggQueue.io.enq.bits.data := aggBufferPlusPRWithPrev
 aggQueue.io.enq.bits.addr := prWithPrev.address
 
-// Arbiter connection to partial row aggregation output
-outputArbiter.io.in(cp.nGroups) <> aggQueue.io.deq
+
+// Two stage output arbiters - aggregation gets priority
+val groupArbiter = Module(new MyRRArbiter(new SPWriteCmd, cp.nGroups))
+val outputArbiter = Module(new Arbiter(new SPWriteCmd, 2))
+
+outputArbiter.io.in(0) <> aggQueue.io.deq
+
+val groupOutputReg = RegEnable(groupArbiter.io.out.bits, outputArbiter.io.in(1).ready)
+val groupOutputReg_valid = RegEnable(groupArbiter.io.out.valid, outputArbiter.io.in(1).ready)
+outputArbiter.io.in(1).bits := groupOutputReg
+outputArbiter.io.in(1).valid := groupOutputReg_valid
+groupArbiter.io.out.ready := outputArbiter.io.in(1).ready
+
+
+//Output connections
+io.spOutWrite <> outputArbiter.io.out
 
 
 
@@ -285,7 +293,7 @@ when(state === sCombine){
 // group io
   for(i <- 0 until cp.nGroups){
 
-    outputArbiter.io.in(i) <> groupArray(i).io.outputBufferWriteData
+    groupArbiter.io.in(i) <> groupArray(i).io.outputBufferWriteData
     groupArray(i).io.nRowPtrInGroup.bits := nRowWritten
     groupArray(i).io.nRowPtrInGroup.valid := (nRowWrittenValid && groupSel === i.U)
     groupArray(i).io.nNonZero.bits := nNonZeroPerGroup
