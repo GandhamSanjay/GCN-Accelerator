@@ -105,7 +105,8 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   Output:
     1. rowPtrData1, rowPtrData2, (currRowPtr = rowPtr1Data) and peReq goes to D2.
   */
-  val d1Queue = Module(new Queue(new rowPtrData(), 15))
+  val d1Queue = Module(new Queue(new rowPtrData(), 32))
+  assert(d1Queue.io.enq.ready === true.B)
   val d1_reqValid_q = Reg(Bool())
   val sIdle :: sRowPtr1 :: sRowPtr2  :: Nil = Enum(3)
   val d1_state_q = RegInit(sIdle)
@@ -127,8 +128,8 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   d1Queue.io.enq.bits.isPR := d1_isPR
   d1Queue.io.enq.valid := d1_reqValid_q
 
-  when((d1_state_q === sRowPtr2) && !rowPtrDone){
-    d1_numRowPtr_q := d1_numRowPtr_q + 2.U
+  when((d1_state_q === sRowPtr1 || d1_state_q === sRowPtr2) && !rowPtrDone){
+    d1_numRowPtr_q := d1_numRowPtr_q + 1.U
   }.elsewhen(d1_state_q === sIdle){
     d1_numRowPtr_q := 0.U
   }
@@ -271,7 +272,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val d2_isPR = Mux(d2_nextValid_q, d2_isPR_q, d1Queue.io.deq.bits.isPR)
   val d2_endOfRow_q = RegInit(false.B)
   val d2_isNewOutput_q = RegNext(d2_currRowPtr === d2_rowPtr1Data)
-  d1Queue.io.deq.ready := !d2_nextValid
+  d1Queue.io.deq.ready := !d2_nextValid_q
   val d1_valid = d1Queue.io.deq.valid
   d2_valid := d2_nextValid_q || (d1Queue.io.deq.valid && !d2_nextValid_q)
   d2_rowPtr1Data_q := d2_rowPtr1Data
