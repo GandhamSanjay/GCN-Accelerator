@@ -58,7 +58,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val totalNonZero = RegInit(0.U(cp.blockSize.W))
   val isPRWithNextGroup = RegEnable(io.isPRWithNextGroup.bits, io.isPRWithNextGroup.valid)
   dontTouch(isPRWithNextGroup)
-  val rowOffset = RegEnable(io.rowOffset.bits, io.rowOffset.valid)
+  val rowOffset = if (groupID > 0) RegEnable(io.rowOffset.bits, io.rowOffset.valid) else 0.U
 
   when(io.nNonZero.valid){
     rowPtrBegin := rowPtrBegin + (groupID.U << Log2(io.nNonZero.bits))
@@ -105,7 +105,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   Output:
     1. rowPtrData1, rowPtrData2, (currRowPtr = rowPtr1Data) and peReq goes to D2.
   */
-  val d1Queue = Module(new Queue(new rowPtrData(), 32))
+  val d1Queue = Module(new Queue(new rowPtrData(), 512))
   assert(d1Queue.io.enq.ready === true.B)
   val d1_reqValid_q = Reg(Bool())
   val sIdle :: sRowPtr1 :: sRowPtr2  :: Nil = Enum(3)

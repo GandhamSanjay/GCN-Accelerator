@@ -83,7 +83,8 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   rowPtrFin := rowPtrData >= rowPtrFinComparison
   // Checks whether the final row in the group is a partial row
   val rowPtrIsPartialRow = rowPtrData > rowPtrFinComparison
-  val firstRowPtrOutsideOfBounds = RegEnable(rowPtrIsPartialRow || (groupSel === 0.U), rowPtrFin === 0.U)
+  //val firstRowPtr_alreadyRead = RegEnable(rowPtrIsPartialRow || (groupSel === 0.U), rowPtrFin === 0.U)
+  val firstRowPtr_alreadyRead = rowPtrIsPartialRow || ((groupSel + 1.U) << Log2(nNonZeroPerGroup) === rowPtrData) 
   val rowPtrWriteAddr = RegInit(0.U(C_SRAM_OFFSET_BITS.W))
   when(state === sDataMoveRow){
     when(rowPtrFin){
@@ -94,6 +95,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   }
   val rowPtrWriteEn = !rowPtrFin && (state === sDataMoveRow)
   val nRowWritten_q = RegInit(0.U(32.W))
+  val nRowRead_q = RegInit(0.U(32.W))
   val nRowWritten =  nRowWritten_q + !rowPtrFin
   val nRowWrittenValid = Wire(Bool())
   val rowOffset_q = RegInit(0.U(32.W))
@@ -155,7 +157,8 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
 // group select
   when((((state === sDataMoveRow) && rowPtrFin)||(state === sDataMoveCol) && colFin)||((state === sDataMoveVal) && valFin)){
     // row offset = row offset + nRowWritten + 1 (since it starts at 0) - the bounds that don't count
-    rowOffset_q := rowOffset_q  + (nRowWritten_q + 1.U -& firstRowPtrOutsideOfBounds -& rowPtrIsPartialRow)
+    // rowOffset_q := rowOffset_q  + (nRowWritten_q + 1.U -& firstRowPtr_alreadyRead -& rowPtrIsPartialRow)
+    rowOffset_q := rowOffset_q  + (nRowWritten_q + 1.U -& firstRowPtr_alreadyRead -& rowPtrIsPartialRow)
     when(groupEnd){
       groupSel := 0.U
       nRowWritten_q := 0.U
@@ -223,6 +226,7 @@ val outputArbiter = Module(new Arbiter(new SPWriteCmd, 2))
 
 outputArbiter.io.in(0) <> aggQueue.io.deq
 
+// Extra register stage between group arbiter and output arbiter
 val groupOutputReg = RegEnable(groupArbiter.io.out.bits, outputArbiter.io.in(1).ready)
 val groupOutputReg_valid = RegEnable(groupArbiter.io.out.valid, outputArbiter.io.in(1).ready)
 outputArbiter.io.in(1).bits := groupOutputReg
@@ -303,9 +307,10 @@ when(state === sCombine){
     groupArray(i).io.ptrSpWrite.valid :=  rowPtrWriteEn && (groupSel === i.U)
     groupArray(i).io.ptrSpWrite.bits.data := rowPtrData
     groupArray(i).io.isPRWithNextGroup.valid := (state === sDataMoveRow) && (groupSel === i.U)
-    groupArray(i).io.isPRWithNextGroup.bits := rowPtrIsPartialRow
-    groupArray(i).io.rowOffset.bits := rowOffset_q
-    groupArray(i).io.rowOffset.valid := (state === sDataMoveRow) && (groupSel === i.U)
+    groupArray(i).io.isPRWithNextGroup.bits := rowPtrIsPartialRow 
+    //groupArray(i).io.rowOffset.bits := rowOffset_q
+    groupArray(i).io.rowOffset.bits := nRowRead_q - RegNext(rowPtrIsPartialRow)
+    groupArray(i).io.rowOffset.valid := (state === sDataMoveRow) && (groupSel === i.U) && RegNext(rowPtrFin)
     groupArray(i).io.spWrite.bits.spSel :=     
       MuxLookup(state,
       0.U, // default
@@ -356,6 +361,7 @@ io.done := (state === sIdle) && !start
         valReadAddr := dec.io.sramVal
         denReadAddr := dec.io.sramDen
         rowPtrAddr := dec.io.sramPtr
+        nRowRead_q := 0.U
       }
     }
     is(sDataMoveRow){
@@ -367,6 +373,8 @@ io.done := (state === sIdle) && !start
         }
       }.otherwise{
         rowPtrAddr := rowPtrAddr + (cp.blockSize/8).U
+        nRowRead_q := nRowRead_q + 1.U
+        dontTouch(nRowRead_q)
       }
     }
     is(sDataMoveCol){
