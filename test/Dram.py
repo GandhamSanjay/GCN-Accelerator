@@ -3,6 +3,9 @@ import numpy as np
 import logging
 from inst import inst
 from scipy.sparse import csr_matrix
+import math
+import random
+random.seed()
 
 class data:       
     ### Generates data for GCN-Accelerator
@@ -21,18 +24,31 @@ class data:
                 string_A = string_A + binary_repr(i, 32)[::-1]
         return string_A
 
-    def randSP(self,spDim, denDim, numPEs):
-        I = np.random.randint(2, size = spDim)
-        print(sum(sum(I)))
-        while sum(sum(I))%numPEs != 0 or (sum(sum(I))/numPEs) % denDim[1] != 0:
-            for i in range(spDim[0]):
-                for j in range(spDim[1]):
-                    if sum(sum(I))%numPEs != 0 or (sum(sum(I))/numPEs) % denDim[1] != 0:
-                        I[i][j] = 0
-                    else:
-                        break
-                if sum(sum(I))%numPEs == 0 and (sum(sum(I))/numPEs) % denDim[1] == 0:
-                    break
+    def randSP(self,spDim, denDim, numPEs, numSparseValues):
+        # I = np.random.randint(4000, size = spDim)
+        # for i in range(I.shape[0]):
+        #     for j in range(I.shape[1]):
+        #         if I[i][j] != 1:
+        #             I[i][j] = 0
+        # print(sum(sum(I)))
+        # while sum(sum(I))%numPEs != 0 or (sum(sum(I))/numPEs) % denDim[1] != 0 or (math.log2(sum(sum(I))/numPEs)) != int(math.log2(sum(sum(I))/numPEs)):
+        #     for i in range(spDim[0]):
+        #         for j in range(spDim[1]):
+        #             if sum(sum(I))%numPEs != 0 or (sum(sum(I))/numPEs) % denDim[1] != 0 or math.log2(sum(sum(I))) != int(math.log2(sum(sum(I)))):
+        #                 I[i][j] = 1
+        #             else:
+        #                 break
+        #         if sum(sum(I))%numPEs == 0 and (sum(sum(I))/numPEs) % denDim[1] == 0 and math.log2(sum(sum(I))) == int(math.log2(sum(sum(I)))):
+        #             break
+        I = np.zeros(shape = spDim, dtype=int)
+        for i in range(numSparseValues):
+            v = 1 + random.randrange(1000)
+            r = random.randrange(spDim[0])
+            c = random.randrange(spDim[1])
+            while (I[r][c] != 0):
+                r = random.randrange(spDim[0])
+                c = random.randrange(spDim[1])
+            I[r][c] = int(v)
         print(sum(sum(I)))
         print("Out of while loop\n")
         print(f"\nSparse matrix is = \n{I}")
@@ -49,6 +65,8 @@ class data:
         print(f"\nDense matrix is = \n{W}")
         O = np.matmul(I,W)
         print(f"\nOutput matrix is = \n{O}")
+        np.set_printoptions(formatter={'int':lambda x:hex(int(x))})
+        print(f"\nOutput matrix (hex) is = \n{O}")
         return ((val,col,row), I, W, O)
 
 
@@ -70,18 +88,62 @@ den = np.array([[2, 2],
             [1, 3],
             [3, 1],
             [1, 2]])
-((val,col,row), I, den, O) = dataGen.randSP(spDim = (8,2), denDim = (2,2), numPEs = 4)
+((val,col,row), I, den, O) = dataGen.randSP(spDim = (8192, 16), denDim = (16,8), numPEs = 16, numSparseValues = 1024)
+
+k = 0
+hex_str = ''
+colFile = open('col_data.txt','w')
+for i in col:
+    if (k == 8):
+        #print(str(hex(col[i])) + " ")
+        colFile.write(hex_str + '\n')
+        k = 0
+        hex_str = ''
+    hex_str = str(hex(i)) + '\t' + hex_str
+    k = k + 1
+colFile.close()
+
+rowPtrFile = open('rowPtrs.txt','w')
+for i in row:
+    rowPtrFile.write(str(i) + '\n')
+rowPtrFile.close()
+
 (_,x) = den.shape
 (y,_) = I.shape
 rowBin = dataGen.arrayToBinary(row)
 colBin = dataGen.arrayToBinary(col)
+
+k = 0
+bin_str = ''
+colBinStr = ''
+colComparisonFile = open('col_comp_file.txt','w')
+print("Len = " + str(len(colBin)))
+for i in range(int(len(colBin)/32)):
+    if (k == 8):
+        #print(str(hex(col[i])) + " ")
+        colComparisonFile.write(bin_str[::-1] + '\n')
+        colComparisonFile.write(colBinStr + "\n\n")
+        #print(bin_str)
+        #print(colBinStr + "\n\n")
+        k = 0
+        bin_str = ''
+        colBinStr = ''
+    binDigit = str(bin(col[i]))[2:]
+    while (len(binDigit) < 32):
+        binDigit = '0' + binDigit
+    bin_str = binDigit + bin_str
+    colBinStr = colBinStr + colBin[i*32:((i+1)*32)]
+    k = k + 1
+colComparisonFile.close()
+
+print("colBin length = " + str(len(colBin)))
 valBin = dataGen.arrayToBinary(val)
 denBin = dataGen.matrixToBinary(den)
 rowAddr = pow(2,10)
-colAddr = 32 * pow(2,10)
-valAddr = 1024 * pow(2,10)
-denAddr = 2048 * pow(2,10)
-outAddr = 3072 * pow(2,10)
+colAddr = 1024 * pow(2,10)
+valAddr = 2048 * pow(2,10)
+denAddr = 3072 * pow(2,10)
+outAddr = 4096 * pow(2,10)
 instGen = inst()
 instr = ''
 instr = instr + instGen.load(xsize = row.size, id = 'row', dram_offset = rowAddr, sram_offset = rowAddr)
