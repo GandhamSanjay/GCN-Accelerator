@@ -33,7 +33,7 @@ private object MyArbiterCtrl {
 
 class MyLockingRRArbiter[T <: Data](gen: T, n: Int, count: Int, needsLock: Option[T => Bool] = None)
     extends LockingArbiterLike[T](gen, n, count, needsLock) {
-  lazy val lastGrant = RegEnable(io.chosen, io.out.fire, true.B)
+  lazy val lastGrant = RegEnable(io.chosen, 0.U, io.out.fire)
   lazy val grantMask = (0 until n).map(_.asUInt > lastGrant)
   lazy val validMask = io.in.zip(grantMask).map { case (in, g) => in.valid && g }
 
