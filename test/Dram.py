@@ -88,7 +88,8 @@ den = np.array([[2, 2],
             [1, 3],
             [3, 1],
             [1, 2]])
-((val,col,row), I, den, O) = dataGen.randSP(spDim = (8192, 16), denDim = (16,8), numPEs = 16, numSparseValues = 1024)
+nPEs = 16
+((val,col,row), I, den, O) = dataGen.randSP(spDim = (2048, 2048), denDim = (2048,8), numPEs = nPEs, numSparseValues = 8192)
 
 k = 0
 hex_str = ''
@@ -162,6 +163,7 @@ metaDataF = open('metaData.txt','w')
 metaDataF.write(str(outAddr)+'\n')
 metaDataF.write(str(I.shape[0]) + '\n')
 metaDataF.write(str(den.shape[1])+'\n')
+metaDataF.write(str(nPEs) +'\n')
 metaDataF.close()
 
 print("Result data saved")

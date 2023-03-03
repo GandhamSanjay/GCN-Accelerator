@@ -26,6 +26,7 @@ class TB(object):
         self.outputPtr = 0
         self.nDenseCols = 0
         self.sparseRows = 0
+        self.nPEs = 0
         self.load_result_matrix()
 
 	#start the clock as a parallel process.
@@ -66,6 +67,7 @@ class TB(object):
         self.outputPtr = int(metaDataF.readline(),10)
         self.sparseRows = int(metaDataF.readline(),10)
         self.nDenseCols = int(metaDataF.readline(),10)
+        self.nPEs = int(metaDataF.readline(),10)
         metaDataF.close()
         addr = self.outputPtr
         self.memory.seek(addr)
@@ -86,6 +88,26 @@ class TB(object):
 #        tb.memory.seek(dut.core.outputScratchpad_io_spWrite_addr)
 #        numpyVal = tb.memory.read(16)
 #        assert(numpyVal == tb.memory.seek)
+
+class QueueEntryMonitor(object):
+    def __init__(self, nPEs):
+        self.nPEs = nPEs
+        self.entries = [0]*self.nPEs
+        self.maxEntries = [0]*self.nPEs
+    
+    def eval(self, dut):
+        for i in range(self.nPEs):
+            push_val = int(eval('dut.core.compute.groupArray_' + str(i) + '.outBuff.io_enq_valid'))
+            pop_val = int(eval('dut.core.compute.groupArray_' + str(i) + '.outBuff.io_deq_ready')) and int(eval('dut.core.compute.groupArray_' + str(i) + '.outBuff.io_deq_valid'))
+            self.entries[i] = self.entries[i] + push_val - pop_val
+            if (self.entries[i] > self.maxEntries[i]):
+                self.maxEntries[i] = self.entries[i]
+        
+    def report(self):
+        results = "Largest number of entries = " + str(max(self.maxEntries)) + '\n'
+        for i in range(self.nPEs):
+            results = results + 'PE' + str(i) + ' had a maximum of ' + str(self.maxEntries[i]) + ' entries\n'
+        return results
 
 
 @cocotb.test()
@@ -119,10 +141,16 @@ async def my_first_test(dut):
     #     addr = addr + 0x0004
 
     numWritten = 0
-    errorCount = 0
+    errorCount = 0    
+    lowestAddress = 174848
 
-    for i in range(5000):
+    queueMonitor = QueueEntryMonitor(tb.nPEs)
+
+    for i in range(25000):
         await RisingEdge(dut.core_clock)
+
+        queueMonitor.eval(dut)
+        #print(str(eval('dut.core.compute.groupArray_0.clock')))
 
         # Monitor Output Scratchpad
         if (dut.core.outputScratchpad_io_writeEn.value):
@@ -137,11 +165,18 @@ async def my_first_test(dut):
                 print("Address: " + str(int(dut.core.outputScratchpad_io_spWrite_addr.value)))
                 print("NumPy:\t" + str(bitStr) + "\nDut:\t"+str(dut.core.outputScratchpad_io_spWrite_data.value))
                 errorCount = errorCount + 1
+                # if (int(dut.core.outputScratchpad_io_spWrite_addr.value) < lowestAddress):
+                #     lowestAddress = int(dut.core.outputScratchpad_io_spWrite_addr.value)
             assert(bitStr == str(dut.core.outputScratchpad_io_spWrite_data.value))
 
     #print("There were " + str(errorCount) + " invalid outputs\n")
+
+    print(queueMonitor.report())
+
+    # print("First address to error was: " + str(lowestAddress))
     if (numWritten != tb.sparseRows):
         print(str(numWritten) + " rows were written. The output should have had " + str(tb.sparseRows) + " rows\n")
     assert(numWritten == tb.sparseRows)
+
 
     #await Timer(10, units='us')
