@@ -48,12 +48,17 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
   val dec = Module(new ComputeDecode)
+
+  dontTouch(dec.io.sramSum)
+  dontTouch(dec.io.pSumInOutputSp)
+  dontTouch(dec.io.partialSum)
+
   val groupArray = for(i <- 0 until cp.nGroups) yield {
     Module(new Group(groupID = i))
   }
 
 // state machine
-  val sIdle :: sDataMoveRow :: sDataMoveCol :: sDataMoveVal :: sDataMoveDen :: sCompute :: sCombineGroup :: sCombine :: sDone :: Nil = Enum(9)
+  val sIdle :: sDataMoveRow :: sDataMoveCol :: sDataMoveVal :: sDataMoveDen :: sDataMoveSum :: sCompute :: sCombineGroup :: sCombine :: sDone :: Nil = Enum(10)
   val state = RegInit(sIdle)
   val start = inst_q.io.deq.fire
   val inst = RegEnable(inst_q.io.deq.bits, start)
@@ -154,8 +159,30 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     }
   }
 
+  // Partial Sum Splitting
+  val pSumReadAddr = RegInit(0.U(26.W))
+  val pSumWriteAddr = RegInit(0.U(32.W))
+  val pSumRowsRead = RegInit(cp.nColInDense.U(32.W))
+  val groupSel_rowOffset = MuxTree(groupSel + 1.U, groupArray.map(_.io.selectedRowOffset))
+  val pSumFin = ((pSumRowsRead >= groupSel_rowOffset) && (groupSel < (cp.nGroups-1).U)) || (pSumRowsRead >= (dec.io.rowSize - 1.U))
+
+  when(state === sDataMoveSum){
+     pSumRowsRead :=  pSumRowsRead + 1.U
+      when(pSumFin){
+        pSumWriteAddr := 0.U
+      }.otherwise{
+        pSumWriteAddr := pSumWriteAddr + bankBlockSizeBytes.U
+      }
+     pSumReadAddr := pSumReadAddr + bankBlockSizeBytes.U
+  }.otherwise{
+     pSumRowsRead := 1.U
+     pSumWriteAddr := 0.U
+     pSumReadAddr := dec.io.sramSum
+  }
+dontTouch(pSumFin)
+
 // group select
-  when((((state === sDataMoveRow) && rowPtrFin)||(state === sDataMoveCol) && colFin)||((state === sDataMoveVal) && valFin)){
+  when((((state === sDataMoveRow) && rowPtrFin)||(state === sDataMoveCol) && colFin)||((state === sDataMoveVal) && valFin) || ((state === sDataMoveSum) && pSumFin)){
     // row offset = row offset + nRowWritten + 1 (since it starts at 0) - the bounds that don't count
     // rowOffset_q := rowOffset_q  + (nRowWritten_q + 1.U -& firstRowPtr_alreadyRead -& rowPtrIsPartialRow)
     rowOffset_q := rowOffset_q  + (nRowWritten_q + 1.U -& firstRowPtr_alreadyRead -& rowPtrIsPartialRow)
@@ -181,7 +208,9 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
         ((state === sDataMoveCol) && (colFin && groupEnd)) -> valReadAddr,
         ((state === sDataMoveVal) && !(valFin && groupEnd)) -> valReadAddr,
         ((state === sDataMoveVal) && (valFin && groupEnd)) -> denReadAddr,
-        ((state === sDataMoveDen)) -> denReadAddr
+        ((state === sDataMoveDen) && !(denFin)) -> denReadAddr,
+        ((state === sDataMoveDen) && denFin) -> pSumReadAddr,
+        ((state === sDataMoveSum)) -> pSumReadAddr
       ))
 
 
@@ -297,6 +326,10 @@ when(state === sCombine){
 // group io
   for(i <- 0 until cp.nGroups){
 
+    groupArray(i).io.addPartialSum := dec.io.partialSum
+    groupArray(i).io.pSumSPWrite.bits.data := Mux(dec.io.pSumInOutputSp, 0.U ,io.gbReadData.data)
+    groupArray(i).io.pSumSPWrite.bits.addr := pSumWriteAddr
+    groupArray(i).io.pSumSPWrite.valid := (state === sDataMoveSum) && (groupSel === i.U)
     groupArbiter.io.in(i) <> groupArray(i).io.outputBufferWriteData
     groupArray(i).io.nRowPtrInGroup.bits := nRowWritten
     groupArray(i).io.nRowPtrInGroup.valid := (nRowWrittenValid && groupSel === i.U)
@@ -318,7 +351,8 @@ when(state === sCombine){
         sDataMoveVal -> 0.U,
         sDataMoveRow -> 2.U,
         sDataMoveCol -> 3.U,
-        sDataMoveDen -> 1.U
+        sDataMoveDen -> 1.U,
+        sDataMoveSum -> 4.U
       ))
     groupArray(i).io.spWrite.bits.spWriteCmd.addr :=
       MuxLookup(state,
@@ -345,7 +379,8 @@ when(state === sCombine){
         sDataMoveRow -> rowPtrWriteEn,
         sDataMoveCol -> true.B,
         sDataMoveVal -> true.B,
-        sDataMoveDen -> true.B
+        sDataMoveDen -> true.B,
+        sDataMoveSum -> false.B
       )).asBool  && (groupSel === i.U))
   }
 val computeDone = groupArray.map(_.io.done).reduce(_&&_)
@@ -392,7 +427,8 @@ io.done := (state === sIdle) && !start
       when(valFin){
         when(groupEnd){
           when(denseLoaded){
-            state := sCompute
+            state := sDataMoveSum
+            pSumReadAddr := pSumReadAddr + bankBlockSizeBytes.U
           }.otherwise{
             state := sDataMoveDen
           }
@@ -406,7 +442,15 @@ io.done := (state === sIdle) && !start
     is(sDataMoveDen){
       denReadAddr := denReadAddr + bankBlockSizeBytes.U
       when(denFin){
-        state := sCompute
+        state := sDataMoveSum
+        pSumReadAddr := pSumReadAddr + bankBlockSizeBytes.U
+      }
+    }
+    is(sDataMoveSum){
+      when(pSumFin){
+        when(groupEnd){
+          state := sCompute
+        }
       }
     }
     is(sCompute){

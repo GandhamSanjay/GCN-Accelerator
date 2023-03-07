@@ -33,7 +33,11 @@ class MemDecode extends Bundle{
  */
 class SpMMDecode extends Bundle {
 
-  val empty = UInt(41.W)
+  val empty = UInt(16.W)
+  val pSum_size = UInt(C_XSIZE_BITS.W)
+  val scratchpad_n_global_buffer = Bool()
+  val add_partial_sum = Bool()
+  val sram_offset_partial_sum = UInt(C_SRAM_OFFSET_BITS.W)
   val pr_valid = UInt(C_PR_BITS.W)
   val row_size = UInt(C_YSIZE_BITS.W)
   val col_size = UInt(C_YSIZE_BITS.W)
@@ -162,6 +166,10 @@ class ComputeDecode extends Module with ISAConstants{
     val denSize = Output(UInt(C_XSIZE_BITS.W))
     val colSize = Output(UInt(C_YSIZE_BITS.W))
     val rowSize = Output(UInt(C_YSIZE_BITS.W))
+    val sramSum = Output(UInt(C_SRAM_OFFSET_BITS.W))
+    val partialSum = Output(Bool())
+    val pSumInOutputSp = Output(Bool())
+    val pSumSize = Output(UInt(C_XSIZE_BITS.W))
   })
   val dec = io.inst.asTypeOf(new SpMMDecode)
   io.sramVal := dec.sram_offset_val
@@ -171,6 +179,10 @@ class ComputeDecode extends Module with ISAConstants{
   io.denSize := dec.den_size
   io.colSize := dec.col_size
   io.rowSize := dec.row_size
+  io.sramSum := dec.sram_offset_partial_sum
+  io.partialSum := dec.add_partial_sum
+  io.pSumInOutputSp := dec.scratchpad_n_global_buffer
+  io.pSumSize := dec.pSum_size
 }
 
 // /** StoreDecode.

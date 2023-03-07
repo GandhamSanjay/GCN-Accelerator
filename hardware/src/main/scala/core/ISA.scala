@@ -42,12 +42,12 @@ object ISA {
   val OP_BITS = 2
   val M_ID_BITS = 3
   val M_DRAM_OFFSET_BITS = 64
-  val M_SRAM_OFFSET_BITS = 32
+  val M_SRAM_OFFSET_BITS = 26
   val M_XSIZE_BITS = 32
   val M_YSIZE_BITS = 0
-  val C_SRAM_OFFSET_BITS = 32
-  val C_XSIZE_BITS = 32
-  val C_YSIZE_BITS = 32
+  val C_SRAM_OFFSET_BITS = 26
+  val C_XSIZE_BITS = 26
+  val C_YSIZE_BITS = 26
   val C_PR_BITS = 2
   val Y = true.B
   val N = false.B

@@ -38,10 +38,13 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val io = IO(new Bundle {
     val nRowPtrInGroup = Flipped(ValidIO(UInt(32.W)))
     val rowOffset = Flipped(ValidIO(UInt(32.W)))
+    val selectedRowOffset = Output(UInt(32.W))
     val spWrite = Flipped(Decoupled(new SPWriteCmdWithSel))
+    val pSumSPWrite = Flipped(ValidIO(new SPWriteCmd))
     val ptrSpWrite = Flipped(Decoupled(new SPWriteCmd(mode = "single")))
     val nNonZero = Flipped(ValidIO(UInt(32.W)))
     val isPRWithNextGroup = Flipped(ValidIO(Bool()))
+    val addPartialSum = Input(Bool())
     val prEntry = Output(new PRTableEntry)
     val start = Input(Bool())
     val done = Output(Bool())
@@ -59,6 +62,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val isPRWithNextGroup = RegEnable(io.isPRWithNextGroup.bits, io.isPRWithNextGroup.valid)
   dontTouch(isPRWithNextGroup)
   val rowOffset = if (groupID > 0) RegEnable(io.rowOffset.bits, io.rowOffset.valid) else 0.U
+  io.selectedRowOffset := rowOffset
 
   when(io.nNonZero.valid){
     rowPtrBegin := rowPtrBegin + (groupID.U << Log2(io.nNonZero.bits))
@@ -77,10 +81,12 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val spCol = Module(new Scratchpad(scratchType = "Col", masked = false))
   val spPtr = Module(new SingleScratchpad(scratchType = "Ptr", masked = false))
   val spDen = Module(new BankedScratchpad(scratchType = "Den"))
+  val spPSum = Module(new BankedScratchpad(scratchType = "Den"))
 
   io.spWrite.bits.spWriteCmd <> spVal.io.spWrite
   io.spWrite.bits.spWriteCmd <> spCol.io.spWrite
   io.spWrite.bits.spWriteCmd <> spDen.io.spWrite
+  
   io.ptrSpWrite.bits <> spPtr.io.spWrite
   io.spWrite.ready := true.B
   io.ptrSpWrite.ready := true.B
@@ -88,6 +94,14 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   spDen.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 1.U)
   spPtr.io.writeEn := io.ptrSpWrite.fire
   spCol.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 3.U)
+  
+  spPSum.io.spWrite <> io.pSumSPWrite.bits
+  spPSum.io.writeEn := io.pSumSPWrite.fire
+  val junk = spPSum.io.spReadData
+  // also junk
+  for( i<-0 until cp.nPE){
+    spPSum.io.spReadCmd(i).addr := 0.U
+  }
 
   spVal.io.spReadCmd.addr := io.spWrite.bits.spWriteCmd.addr
   spPtr.io.spReadCmd.addr := d1_rowPtrAddr
@@ -312,6 +326,12 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     spDen.io.spReadCmd(i).addr := ((dr_colIdx << log2Ceil(blockSizeBytes)) << log2Ceil(cp.nColInDense)) + (dr_denCol(i) << log2Ceil(blockSizeBytes))
   }
 
+  val noOffsetRowAddress = d2_rowNum_q - 1.U
+  for (i <- 0 until cp.nPE){
+    spPSum.io.spReadCmd(i).addr := ((noOffsetRowAddress << log2Ceil(blockSizeBytes)) << log2Ceil(cp.nColInDense)) + (dr_denCol(i) << log2Ceil(blockSizeBytes))
+  }
+  val pSumRow = spPSum.io.spReadData.map(_.data)
+
   val dr_emptyRowCount = RegInit(0.U(M_SRAM_OFFSET_BITS.W))
   
   when(pulse){
@@ -332,7 +352,10 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val m_dense = spDen.io.spReadData.map(_.data)
   val m_sparse = spVal.io.spReadData.data
   val m_multiply = m_dense.map(_*m_sparse)
-  val m_mac = m_multiply.zip(m_acc_q).map{case(x,y) => (Mux(dr_isNewOutput_q, x, x+y))}
+  val m_mac = m_multiply.zip(m_acc_q).zip(pSumRow).map{case((x,y),z) => (Mux(dr_isNewOutput_q, 
+                                                                          Mux(io.addPartialSum && ((dr_rowNum_q < rowPtrSize + isPRWithPrevGroup_q) || !isPRWithNextGroup),
+                                                                             x+z, x), 
+                                                                          x+y))}
   val m_outWrite = dr_outWrite_q || dr_outWriteEmptyRow_q
   val writeResult = m_outWrite && m_valid_q
   when(m_valid_q){
@@ -342,7 +365,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   }
 
   val rowAddress = (dr_rowNum_q - 1.U + rowOffset) << log2Ceil((cp.blockSize * cp.nColInDense)/8)
-  val formattedOutput = Mux(dr_outWriteEmptyRow_q, 0.U, m_mac.map(_(cp.blockSize-1, 0)).reverse.reduce(Cat(_,_)))
+  val formattedOutput = Mux(dr_outWriteEmptyRow_q, pSumRow.map(_(cp.blockSize-1, 0)).reverse.reduce(Cat(_,_)), m_mac.map(_(cp.blockSize-1, 0)).reverse.reduce(Cat(_,_)))
 
   val writePartial1 = writeResult && dr_isPR_q && (dr_rowNum_q === 1.U)
   val writePartial2 = writeResult && dr_isPR_q && (dr_rowNum_q =/= 1.U)

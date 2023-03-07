@@ -89,7 +89,7 @@ den = np.array([[2, 2],
             [3, 1],
             [1, 2]])
 nPEs = 16
-((val,col,row), I, den, O) = dataGen.randSP(spDim = (2048, 2048), denDim = (2048,8), numPEs = nPEs, numSparseValues = 8192)
+((val,col,row), I, den, O) = dataGen.randSP(spDim = (1024, 1024), denDim = (1024,8), numPEs = nPEs, numSparseValues = 8192)
 
 k = 0
 hex_str = ''
@@ -137,23 +137,35 @@ for i in range(int(len(colBin)/32)):
     k = k + 1
 colComparisonFile.close()
 
+
+# Partial sums
+P = np.ones(dtype = int, shape = O.shape)
+for i in range(P.shape[0]):
+    for j in range(P.shape[1]):
+        P[i][j] = (i*P.shape[1] + j)*2
+O = O + P
+
 print("colBin length = " + str(len(colBin)))
 valBin = dataGen.arrayToBinary(val)
 denBin = dataGen.matrixToBinary(den)
+sumBin = dataGen.matrixToBinary(P)
 rowAddr = pow(2,10)
 colAddr = 1024 * pow(2,10)
-valAddr = 2048 * pow(2,10)
-denAddr = 3072 * pow(2,10)
-outAddr = 4096 * pow(2,10)
+valAddr = 1536 * pow(2,10)
+denAddr = 2048 * pow(2,10)
+outAddr = 3072 * pow(2,10)
+sumAddr = 4096 * pow(2,10)
 instGen = inst()
 instr = ''
 instr = instr + instGen.load(xsize = row.size, id = 'row', dram_offset = rowAddr, sram_offset = rowAddr)
 instr = instr + instGen.load(xsize = col.size, id = 'col', dram_offset = colAddr, sram_offset = colAddr)
 instr = instr + instGen.load(xsize = val.size, id = 'val', dram_offset = valAddr, sram_offset = valAddr)
 instr = instr + instGen.load(xsize = den.size, id = 'den', dram_offset = denAddr, sram_offset = denAddr)
-instr = instr + instGen.spMM(sram_offset_col = colAddr, sram_offset_ptr = rowAddr, sram_offset_den = denAddr, sram_offset_val = valAddr, den_size = den.size, col_size = col.size, row_size = row.size, pr_valid = 1)
+instr = instr + instGen.load(xsize = P.size, id = 'den', dram_offset = sumAddr, sram_offset = sumAddr)
+instr = instr + instGen.spMM(sram_offset_col = colAddr, sram_offset_ptr = rowAddr, sram_offset_den = denAddr, sram_offset_val = valAddr, den_size = den.size, col_size = col.size, row_size = row.size, pr_valid = 1, sram_offset_partial_sum = sumAddr, add_partial_sum = 1, scratchpad_n_global_buffer = 0, pSum_size = P.shape[0])
 instr = instr + instGen.store(xsize = O.size, dram_offset = outAddr, sram_offset = 0)
 #instr = instr + instGen.store(xsize = O.size, dram_offset = outAddr, sram_offset = 0)
+
 
 # Save result matrix
 np.savetxt('output_matrix.txt',O)
@@ -167,7 +179,6 @@ metaDataF.write(str(nPEs) +'\n')
 metaDataF.close()
 
 print("Result data saved")
-
 # Load result matrix
 #infile = open('output_matrix.txt','r')
 #O1 = np.loadtxt(infile)
@@ -194,6 +205,9 @@ print("Padded to Val")
 while((len(dram)/8) != denAddr):
     dram = dram + '0'*32
 dram = dram + denBin
+while((len(dram)/8) != sumAddr):
+    dram = dram + '0'*32
+dram = dram + sumBin
 print("Dense matrix padded")
 f = open('ram.txt','w')
 f.write(dram)
