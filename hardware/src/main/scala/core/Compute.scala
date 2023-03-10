@@ -68,12 +68,19 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val groupSel = RegInit(0.U(cp.nGroups.W))
   val groupEnd = groupSel === (cp.nGroups - 1).U
   
-  val nNonZeroPerGroup =  dec.io.colSize >> log2Ceil(cp.nGroups)
+  val nNonZero = dec.io.colSize
+  val nNonZeroPerGroup = nNonZero >> log2Ceil(cp.nGroups)
   val gbAddr = RegInit(0.U(C_SRAM_OFFSET_BITS.W))
   val gbRdata = io.gbReadData.data
 
   // Row Splitting
   val rowPtrFin = Wire(Bool())
+  val rowPtrWriteEn = !rowPtrFin && (state === sDataMoveRow)
+  val nRowWritten_q = RegInit(0.U(32.W))
+  val nRowRead_q = RegInit(0.U(32.W))
+  val nRowWritten =  nRowWritten_q + !rowPtrFin
+  val nRowWrittenValid = Wire(Bool())
+  val rowOffset_q = RegInit(0.U(32.W))
   val rowPtrDataBlock = for(i <- 0 until (cp.bankBlockSize/cp.blockSize))yield{
     gbRdata((((i+1)*cp.blockSize) -1), i*cp.blockSize)
   }
@@ -82,7 +89,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val rowPtrData = MuxTree(rowPtrIdxInBlock, rowPtrDataBlock)
   val rowPtrReadAddr = Mux(start, dec.io.sramPtr, Mux(rowPtrFin, rowPtrAddr, rowPtrAddr + (cp.blockSize/8).U)) 
   val rowPtrFinComparison = ((( groupSel + 1.U) << Log2(nNonZeroPerGroup)))
-  rowPtrFin := rowPtrData >= rowPtrFinComparison
+  rowPtrFin := (rowPtrData >= rowPtrFinComparison && groupSel < (cp.nGroups-1).U) || nRowRead_q >= dec.io.rowSize
   // Checks whether the final row in the group is a partial row
   val rowPtrIsPartialRow = rowPtrData > rowPtrFinComparison
   //val firstRowPtr_alreadyRead = RegEnable(rowPtrIsPartialRow || (groupSel === 0.U), rowPtrFin === 0.U)
@@ -95,12 +102,6 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
       rowPtrWriteAddr := rowPtrWriteAddr + (cp.blockSize/8).U
     }
   }
-  val rowPtrWriteEn = !rowPtrFin && (state === sDataMoveRow)
-  val nRowWritten_q = RegInit(0.U(32.W))
-  val nRowRead_q = RegInit(0.U(32.W))
-  val nRowWritten =  nRowWritten_q + !rowPtrFin
-  val nRowWrittenValid = Wire(Bool())
-  val rowOffset_q = RegInit(0.U(32.W))
 
   // Col Splitting
   val colReadAddr = RegInit(0.U(32.W))
