@@ -24,7 +24,7 @@ class data:
                 string_A = string_A + binary_repr(i, 32)[::-1]
         return string_A
 
-    def randSP(self,spDim, denDim, numPEs, numSparseValues):
+    def randSP(self,spDim, denDim, numPEs, numSparseValues, colTileNum = 0, nTiles = 1, W=0):
         # I = np.random.randint(4000, size = spDim)
         # for i in range(I.shape[0]):
         #     for j in range(I.shape[1]):
@@ -40,34 +40,39 @@ class data:
         #                 break
         #         if sum(sum(I))%numPEs == 0 and (sum(sum(I))/numPEs) % denDim[1] == 0 and math.log2(sum(sum(I))) == int(math.log2(sum(sum(I)))):
         #             break
-        I = np.zeros(shape = spDim, dtype=int)
+        tileCols = int(spDim[1]/nTiles)
+        I_padded = np.zeros(shape = spDim, dtype=int)
+        I = np.zeros(shape = (spDim[0],tileCols), dtype=int)
         for i in range(numSparseValues):
             v = 1 + random.randrange(1000)
             r = random.randrange(spDim[0])
-            c = random.randrange(spDim[1])
+            c = random.randrange(tileCols)
             while (I[r][c] != 0):
                 r = random.randrange(spDim[0])
-                c = random.randrange(spDim[1])
+                c = random.randrange(tileCols)
             I[r][c] = int(v)
+            I_padded[r][c + colTileNum*tileCols] = int(v)
         print(sum(sum(I)))
         print("Out of while loop\n")
         print(f"\nSparse matrix is = \n{I}")
 
         Sparse = csr_matrix(I)
+        Sparse_padded = csr_matrix(I_padded)
         val = Sparse.data
         print(f"\nVal is =\n {val}")
         print(f"\nSize of val = {val.shape}")
-        col = Sparse.indices
+        col = Sparse_padded.indices
         print(f"\nCol_Idx  is = \n{col}")
         row = Sparse.indptr
         print(f"\nRow_ptr is = \n{row}")
-        W = np.random.randint(100, size = denDim)
+        if colTileNum == 0:
+            W = np.random.randint(100, size = denDim)
         print(f"\nDense matrix is = \n{W}")
-        O = np.matmul(I,W)
+        O = np.matmul(I_padded,W)
         print(f"\nOutput matrix is = \n{O}")
         np.set_printoptions(formatter={'int':lambda x:hex(int(x))})
         print(f"\nOutput matrix (hex) is = \n{O}")
-        return ((val,col,row), I, W, O)
+        return ((val,col,row), I, I_padded, W, O)
 
 
 np.random.seed(0)
@@ -89,7 +94,12 @@ den = np.array([[2, 2],
             [3, 1],
             [1, 2]])
 nPEs = 16
-((val,col,row), I, den, O) = dataGen.randSP(spDim = (1024, 1024), denDim = (1024,8), numPEs = nPEs, numSparseValues = 8192)
+# ((val,col,row), I, den, O) = dataGen.randSP(spDim = (256, 64), denDim = (64,8), numPEs = nPEs, numSparseValues = 512)
+((A_val,A_col,A_row), A, A_padded, den, A_O) = dataGen.randSP(spDim = (512, 64), denDim = (64,8), numPEs = nPEs, numSparseValues = 512, colTileNum = 0, nTiles = 2)
+((B_val,B_col,B_row), B, B_padded, den, B_O) = dataGen.randSP(spDim = (512, 64), denDim = (64,8), numPEs = nPEs, numSparseValues = 512, colTileNum = 1, nTiles = 2, W=den)
+
+
+
 
 k = 0
 hex_str = ''
@@ -105,37 +115,44 @@ for i in col:
 colFile.close()
 
 rowPtrFile = open('rowPtrs.txt','w')
-for i in row:
-    rowPtrFile.write(str(i) + '\n')
+for i in np.vstack((A_row,B_row)):
+    for j in i:
+        rowPtrFile.write(str(j) + '\n')
 rowPtrFile.close()
 
 (_,x) = den.shape
 (y,_) = I.shape
-rowBin = dataGen.arrayToBinary(row)
-colBin = dataGen.arrayToBinary(col)
+# rowBin = dataGen.arrayToBinary(row)
+# colBin = dataGen.arrayToBinary(col)
+A_rowBin = dataGen.arrayToBinary(A_row)
+B_rowBin = dataGen.arrayToBinary(B_row)
+rowBin = A_rowBin + B_rowBin
+A_colBin = dataGen.arrayToBinary(A_col)
+B_colBin = dataGen.arrayToBinary(B_col)
+colBin = A_colBin + B_colBin
 
-k = 0
-bin_str = ''
-colBinStr = ''
-colComparisonFile = open('col_comp_file.txt','w')
-print("Len = " + str(len(colBin)))
-for i in range(int(len(colBin)/32)):
-    if (k == 8):
-        #print(str(hex(col[i])) + " ")
-        colComparisonFile.write(bin_str[::-1] + '\n')
-        colComparisonFile.write(colBinStr + "\n\n")
-        #print(bin_str)
-        #print(colBinStr + "\n\n")
-        k = 0
-        bin_str = ''
-        colBinStr = ''
-    binDigit = str(bin(col[i]))[2:]
-    while (len(binDigit) < 32):
-        binDigit = '0' + binDigit
-    bin_str = binDigit + bin_str
-    colBinStr = colBinStr + colBin[i*32:((i+1)*32)]
-    k = k + 1
-colComparisonFile.close()
+# k = 0
+# bin_str = ''
+# colBinStr = ''
+# colComparisonFile = open('col_comp_file.txt','w')
+# print("Len = " + str(len(colBin)))
+# for i in range(int(len(colBin)/32)):
+#     if (k == 8):
+#         #print(str(hex(col[i])) + " ")
+#         colComparisonFile.write(bin_str[::-1] + '\n')
+#         colComparisonFile.write(colBinStr + "\n\n")
+#         #print(bin_str)
+#         #print(colBinStr + "\n\n")
+#         k = 0
+#         bin_str = ''
+#         colBinStr = ''
+#     binDigit = str(bin(col[i]))[2:]
+#     while (len(binDigit) < 32):
+#         binDigit = '0' + binDigit
+#     bin_str = binDigit + bin_str
+#     colBinStr = colBinStr + colBin[i*32:((i+1)*32)]
+#     k = k + 1
+# colComparisonFile.close()
 
 
 # Partial sums
@@ -143,10 +160,26 @@ P = np.ones(dtype = int, shape = O.shape)
 for i in range(P.shape[0]):
     for j in range(P.shape[1]):
         P[i][j] = (i*P.shape[1] + j)*2
-O = O + P
+
+
+# Save result matrix
+# O = np.vstack( (O + P, O + (O + P)) )
+O = np.vstack((A_O, A_O + B_O))
+print(f"\nCombined output matrix (hex) is = \n{O}")
+np.savetxt('output_matrix.txt',O)
+
+print("Result data saved")
+# Load result matrix
+#infile = open('output_matrix.txt','r')
+#O1 = np.loadtxt(infile)
+#infile.close()
+
 
 print("colBin length = " + str(len(colBin)))
-valBin = dataGen.arrayToBinary(val)
+#valBin = dataGen.arrayToBinary(val)
+A_valBin = dataGen.arrayToBinary(A_val)
+B_valBin = dataGen.arrayToBinary(B_val)
+valBin = A_valBin + B_valBin
 denBin = dataGen.matrixToBinary(den)
 sumBin = dataGen.matrixToBinary(P)
 rowAddr = pow(2,10)
@@ -157,32 +190,29 @@ outAddr = 3072 * pow(2,10)
 sumAddr = 4096 * pow(2,10)
 instGen = inst()
 instr = ''
-instr = instr + instGen.load(xsize = row.size, id = 'row', dram_offset = rowAddr, sram_offset = rowAddr)
-instr = instr + instGen.load(xsize = col.size, id = 'col', dram_offset = colAddr, sram_offset = colAddr)
-instr = instr + instGen.load(xsize = val.size, id = 'val', dram_offset = valAddr, sram_offset = valAddr)
-instr = instr + instGen.load(xsize = den.size, id = 'den', dram_offset = denAddr, sram_offset = denAddr)
-instr = instr + instGen.load(xsize = P.size, id = 'den', dram_offset = sumAddr, sram_offset = sumAddr)
-instr = instr + instGen.spMM(sram_offset_col = colAddr, sram_offset_ptr = rowAddr, sram_offset_den = denAddr, sram_offset_val = valAddr, den_size = den.size, col_size = col.size, row_size = row.size, pr_valid = 1, sram_offset_partial_sum = sumAddr, add_partial_sum = 1, scratchpad_n_global_buffer = 0, pSum_size = P.shape[0])
+instr = instr + instGen.load(xsize = A_row.size, id = 'row', dram_offset = rowAddr, sram_offset = rowAddr)
+instr = instr + instGen.load(xsize = A_col.size, id = 'col', dram_offset = colAddr, sram_offset = colAddr)
+instr = instr + instGen.load(xsize = A_val.size, id = 'val', dram_offset = valAddr, sram_offset = valAddr)
+instr = instr + instGen.load(xsize = den.size, id = 'den', dram_offset = denAddr, sram_offset = denAddr, final_load = 1)
+# instr = instr + instGen.load(xsize = P.size, id = 'den', dram_offset = sumAddr, sram_offset = sumAddr, final_load = 1)
+instr = instr + instGen.spMM(sram_offset_col = colAddr, sram_offset_ptr = rowAddr, sram_offset_den = denAddr, sram_offset_val = valAddr, den_size = den.size, col_size = A_col.size, row_size = A_row.size, pr_valid = 1, sram_offset_partial_sum = sumAddr, add_partial_sum = 0, scratchpad_n_global_buffer = 0, pSum_size = P.shape[0])
 instr = instr + instGen.store(xsize = O.size, dram_offset = outAddr, sram_offset = 0)
-#instr = instr + instGen.store(xsize = O.size, dram_offset = outAddr, sram_offset = 0)
+instr = instr + instGen.load(xsize = B_row.size, id = 'row', dram_offset = rowAddr + int(len(A_rowBin)/8), sram_offset = rowAddr)
+instr = instr + instGen.load(xsize = B_col.size, id = 'col', dram_offset = colAddr + int(len(A_colBin)/8), sram_offset = colAddr)
+instr = instr + instGen.load(xsize = B_val.size, id = 'val', dram_offset = valAddr + int(len(A_valBin)/8), sram_offset = valAddr)
+instr = instr + instGen.load(xsize = B_val.size, id = 'val', dram_offset = valAddr + int(len(A_valBin)/8), sram_offset = valAddr, final_load = 1)
+#instr = instr + instGen.load(xsize = den.size, id = 'den', dram_offset = denAddr, sram_offset = denAddr)
+#instr = instr + instGen.load(xsize = P.size, id = 'den', dram_offset = sumAddr, sram_offset = sumAddr, final_load = 1)
+instr = instr + instGen.spMM(sram_offset_col = colAddr, sram_offset_ptr = rowAddr, sram_offset_den = denAddr, sram_offset_val = valAddr, den_size = den.size, col_size = B_col.size, row_size = B_row.size, pr_valid = 1, sram_offset_partial_sum = sumAddr, add_partial_sum = 1, scratchpad_n_global_buffer = 1, pSum_size = P.shape[0])
+instr = instr + instGen.store(xsize = O.size, dram_offset = outAddr+512*pow(2,10), sram_offset = 0)
 
-
-# Save result matrix
-np.savetxt('output_matrix.txt',O)
-
-# Save output metadate
+# Save output metadata
 metaDataF = open('metaData.txt','w')
 metaDataF.write(str(outAddr)+'\n')
-metaDataF.write(str(I.shape[0]) + '\n')
+metaDataF.write(str(A.shape[0]) + '\n')
 metaDataF.write(str(den.shape[1])+'\n')
 metaDataF.write(str(nPEs) +'\n')
 metaDataF.close()
-
-print("Result data saved")
-# Load result matrix
-#infile = open('output_matrix.txt','r')
-#O1 = np.loadtxt(infile)
-#infile.close()
 
 instCount = len(instr)/256
 while(instCount%2 != 0):

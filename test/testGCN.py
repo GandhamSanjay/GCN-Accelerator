@@ -25,7 +25,7 @@ class TB(object):
         # self.init_ram()
         self.outputPtr = 0
         self.nDenseCols = 0
-        self.sparseRows = 0
+        self.nSparseRows = 0
         self.nPEs = 0
         self.load_result_matrix()
 
@@ -65,7 +65,7 @@ class TB(object):
         infile.close()
         metaDataF = open('metaData.txt','r')
         self.outputPtr = int(metaDataF.readline(),10)
-        self.sparseRows = int(metaDataF.readline(),10)
+        self.nSparseRows = int(metaDataF.readline(),10)
         self.nDenseCols = int(metaDataF.readline(),10)
         self.nPEs = int(metaDataF.readline(),10)
         metaDataF.close()
@@ -94,21 +94,36 @@ class QueueEntryMonitor(object):
         self.nPEs = nPEs
         self.entries = [0]*self.nPEs
         self.maxEntries = [0]*self.nPEs
+        self.doneDelayCounter = 0
+        self.doneDelayLength = 10
+        self.empty = True
     
     def eval(self, dut):
+        empty = True
         for i in range(self.nPEs):
             push_val = int(eval('dut.core.compute.groupArray_' + str(i) + '.outBuff.io_enq_valid'))
             pop_val = int(eval('dut.core.compute.groupArray_' + str(i) + '.outBuff.io_deq_ready')) and int(eval('dut.core.compute.groupArray_' + str(i) + '.outBuff.io_deq_valid'))
             self.entries[i] = self.entries[i] + push_val - pop_val
             if (self.entries[i] > self.maxEntries[i]):
                 self.maxEntries[i] = self.entries[i]
+
         
     def report(self):
         results = "Largest number of entries = " + str(max(self.maxEntries)) + '\n'
         for i in range(self.nPEs):
             results = results + 'PE' + str(i) + ' had a maximum of ' + str(self.maxEntries[i]) + ' entries\n'
         return results
-
+    
+    def done(self):
+        if(sum(self.entries) == 0):
+            if (self.doneDelayCounter >= self.doneDelayLength):
+                return True
+            else:
+                self.doneDelayCounter = self.doneDelayCounter + 1
+                return False
+        else:
+            self.doneDelayCounter = 0
+            return False
 
 @cocotb.test()
 async def my_first_test(dut):
@@ -142,20 +157,39 @@ async def my_first_test(dut):
 
     numWritten = 0
     errorCount = 0    
-    lowestAddress = 174848
+    lowestAddress = 6160000
+    tileNumber = 0
+    outputTileOffset = 0
+    outputMatrixSize = tb.nDenseCols * tb.nSparseRows
+
+    addressOutputCounter = [0]*tb.nSparseRows
 
     queueMonitor = QueueEntryMonitor(tb.nPEs)
 
-    for i in range(25000):
+    # for i in range(64000):
+    while dut.core.state != 4 or (not queueMonitor.done()):
         await RisingEdge(dut.core_clock)
 
         queueMonitor.eval(dut)
         #print(str(eval('dut.core.compute.groupArray_0.clock')))
 
+        # Update the tile number and address offset
+        if (dut.core.compute.start == True and dut.core.state == 2):
+            outputTileOffset = tileNumber * outputMatrixSize * 4
+            print('New outputTileOffset = ' + str(outputTileOffset))
+            if (tileNumber > 0):
+                if (numWritten != tb.nSparseRows*tileNumber):
+                    print("Tile #" + str(tileNumber) + " failed to output the following rows:\n")
+                    for i in range(len(addressOutputCounter)):
+                        if (addressOutputCounter[i] != tileNumber):
+                            print(str(i*32)+'\n')
+            tileNumber = tileNumber + 1
+
         # Monitor Output Scratchpad
         if (dut.core.outputScratchpad_io_writeEn.value):
+            addressOutputCounter[int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)] = addressOutputCounter[int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)] + 1
             numWritten = numWritten + 1
-            tb.memory.seek(dut.core.outputScratchpad_io_spWrite_addr.value + tb.outputPtr)
+            tb.memory.seek(dut.core.outputScratchpad_io_spWrite_addr.value + tb.outputPtr + outputTileOffset)
             numpyVals = tb.memory.read(tb.nDenseCols * 4)
             bitStr = ''
             for num in numpyVals:
@@ -166,17 +200,23 @@ async def my_first_test(dut):
                 print("NumPy:\t" + str(bitStr) + "\nDut:\t"+str(dut.core.outputScratchpad_io_spWrite_data.value))
                 errorCount = errorCount + 1
                 # if (int(dut.core.outputScratchpad_io_spWrite_addr.value) < lowestAddress):
-                #     lowestAddress = int(dut.core.outputScratchpad_io_spWrite_addr.value)
+                    # lowestAddress = int(dut.core.outputScratchpad_io_spWrite_addr.value)
             assert(bitStr == str(dut.core.outputScratchpad_io_spWrite_data.value))
 
     #print("There were " + str(errorCount) + " invalid outputs\n")
 
     print(queueMonitor.report())
-
+# 
     # print("First address to error was: " + str(lowestAddress))
-    if (numWritten != tb.sparseRows):
-        print(str(numWritten) + " rows were written. The output should have had " + str(tb.sparseRows) + " rows\n")
-    assert(numWritten == tb.sparseRows)
+    if (numWritten != tb.nSparseRows*tileNumber):
+        print(str(numWritten) + " rows were written. The output should have had " + str(tb.nSparseRows*tileNumber) + " rows\n")
+        print("Tile #" + str(tileNumber) + " failed to output the following rows:")
+        for i in range(len(addressOutputCounter)):
+            if (addressOutputCounter[i] != tileNumber):
+                print(str(i*32))
+        print('\n')
+
+    assert(numWritten == tb.nSparseRows*tileNumber)
 
 
     #await Timer(10, units='us')
