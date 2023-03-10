@@ -65,13 +65,17 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   io.selectedRowOffset := rowOffset
 
   when(io.nNonZero.valid){
+    rowPtrBegin := groupID.U << Log2(io.nNonZero.bits)
+    rowPtrEnd := (groupID + 1).U << Log2(io.nNonZero.bits)
+  }
+  /*when(io.nNonZero.valid){
     rowPtrBegin := rowPtrBegin + (groupID.U << Log2(io.nNonZero.bits))
     rowPtrEnd := rowPtrEnd + ((groupID + 1).U << Log2(io.nNonZero.bits))
   }.elsewhen(io.done && !RegNext(io.done)){ // Rising edge
     totalNonZero := totalNonZero + (io.nNonZero.bits << log2Ceil(cp.nGroups))
     rowPtrBegin := totalNonZero + (io.nNonZero.bits << log2Ceil(cp.nGroups))
     rowPtrEnd := totalNonZero + (io.nNonZero.bits << log2Ceil(cp.nGroups))
-  }
+  }*/
   val d1_rowPtrAddr = Wire(UInt(32.W))
   //val prQueue = Module(new Queue(new PRTableEntry, 4)) 
  // prQueue.io.deq <> io.prEntry
@@ -96,12 +100,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   spCol.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 3.U)
   
   spPSum.io.spWrite <> io.pSumSPWrite.bits
-  spPSum.io.writeEn := io.pSumSPWrite.fire
-  val junk = spPSum.io.spReadData
-  // also junk
-  for( i<-0 until cp.nPE){
-    spPSum.io.spReadCmd(i).addr := 0.U
-  }
+  spPSum.io.writeEn := io.pSumSPWrite.valid
 
   spVal.io.spReadCmd.addr := io.spWrite.bits.spWriteCmd.addr
   spPtr.io.spReadCmd.addr := d1_rowPtrAddr
@@ -365,7 +364,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   }
 
   val rowAddress = (dr_rowNum_q - 1.U + rowOffset) << log2Ceil((cp.blockSize * cp.nColInDense)/8)
-  val formattedOutput = Mux(dr_outWriteEmptyRow_q, pSumRow.map(_(cp.blockSize-1, 0)).reverse.reduce(Cat(_,_)), m_mac.map(_(cp.blockSize-1, 0)).reverse.reduce(Cat(_,_)))
+  val formattedOutput = Mux(dr_outWriteEmptyRow_q, Mux(io.addPartialSum, pSumRow.map(_(cp.blockSize-1, 0)).reverse.reduce(Cat(_,_)), 0.U), m_mac.map(_(cp.blockSize-1, 0)).reverse.reduce(Cat(_,_)))
 
   val writePartial1 = writeResult && dr_isPR_q && (dr_rowNum_q === 1.U)
   val writePartial2 = writeResult && dr_isPR_q && (dr_rowNum_q =/= 1.U)

@@ -61,14 +61,18 @@ class Core(implicit p: Parameters) extends Module {
   fetch.io.ins_count := io.cr.vals(1)
   val insCountTotal = fetch.io.ins_count
   val insCountCurr_q = RegInit(0.U(32.W))
-  val insCountCurr = Mux(state === sStore, insCountCurr_q + 6.U, insCountCurr_q)
+  //val insCountCurr = Mux(state === sStore, insCountCurr_q + 6.U, insCountCurr_q)
 
   // Load inputs and weights from memory (DRAM) into scratchpads (SRAMs)
   load.io.inst <> fetch.io.inst.ld
   compute.io.inst <> fetch.io.inst.co
   store.io.inst <> fetch.io.inst.st
-  store.io.spReadCmd <> outputScratchpad.io.spReadCmd
-  store.io.spReadData <> outputScratchpad.io.spReadData
+  //store.io.spReadCmd <> outputScratchpad.io.spReadCmd
+  //store.io.spReadData <> outputScratchpad.io.spReadData
+  outputScratchpad.io.spReadCmd.addr := Mux(compute.io.pSumRead.valid, compute.io.pSumRead.bits, store.io.spReadCmd.addr)
+  store.io.spReadData.data := outputScratchpad.io.spReadData.data
+  compute.io.pSumReadData.data := outputScratchpad.io.spReadData.data
+  
 
   // Read(rd) and write(wr) from/to memory (i.e. DRAM)
   io.cr.finish := (state === sFinish)
@@ -82,28 +86,36 @@ class Core(implicit p: Parameters) extends Module {
         when(start){
             state := sLoad
             ctr := ctr + 1.U
+            insCountCurr_q := insCountCurr_q + 1.U
         }
     }
     is(sLoad){
       when(load.io.done){
-        when(ctr === 5.U){
+        insCountCurr_q := insCountCurr_q + 1.U
+        when(load.io.isFinalLoad){
+          state := sCompute
+        }.otherwise{
+          state := sLoad
+        }
+        /*when(ctr === 5.U){
           state := sCompute
         }.otherwise{
           state := sLoad
           ctr := ctr + 1.U
-        }
+        }*/
       }
     }
     is(sCompute){
       when(compute.io.done){
+        insCountCurr_q := insCountCurr_q + 1.U
         state := sStore
         ctr := 0.U
       }
     }
     is(sStore){
       when(store.io.done){
-        insCountCurr_q := insCountCurr_q + 6.U
-        when(insCountCurr === insCountTotal){
+        insCountCurr_q := insCountCurr_q + 1.U
+        when(insCountCurr_q === insCountTotal){
           state := sFinish
         }.otherwise{
           state := sLoad

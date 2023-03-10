@@ -34,16 +34,14 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val inst = Flipped(Decoupled(UInt(INST_BITS.W)))
     val gbReadCmd = Output(new SPReadCmd)
     val gbReadData = Input(new SPReadData(scratchType = "Global"))
+    val pSumRead = ValidIO(UInt(26.W))
+    val pSumReadData = Input(new SPReadData(scratchType = "Out"))
     val spOutWrite = Decoupled(new SPWriteCmd)
     val valid = Input(Bool())
     val done = Output(Bool())
   })
   val bankBlockSizeBytes = cp.bankBlockSize/8
   val denseLoaded = RegInit(false.B)
-  val computeTimeOut = RegInit(0.U(32.W))
-  val computeTimer = RegInit(0.U(32.W))
-  val computeSkipCount = RegInit(0.U(32.W))
-  dontTouch(computeSkipCount)
 
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
@@ -69,7 +67,6 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
 
   val groupSel = RegInit(0.U(cp.nGroups.W))
   val groupEnd = groupSel === (cp.nGroups - 1).U
-  val nNonZeroPrevTotal = RegInit(0.U(32.W))
   
   val nNonZeroPerGroup =  dec.io.colSize >> log2Ceil(cp.nGroups)
   val gbAddr = RegInit(0.U(C_SRAM_OFFSET_BITS.W))
@@ -84,7 +81,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val rowPtrIdxInBlock = rowPtrAddr(log2Ceil(bankBlockSizeBytes)-1,log2Ceil(cp.blockSize/8))
   val rowPtrData = MuxTree(rowPtrIdxInBlock, rowPtrDataBlock)
   val rowPtrReadAddr = Mux(start, dec.io.sramPtr, Mux(rowPtrFin, rowPtrAddr, rowPtrAddr + (cp.blockSize/8).U)) 
-  val rowPtrFinComparison = (nNonZeroPrevTotal + (( groupSel + 1.U) << Log2(nNonZeroPerGroup)))
+  val rowPtrFinComparison = ((( groupSel + 1.U) << Log2(nNonZeroPerGroup)))
   rowPtrFin := rowPtrData >= rowPtrFinComparison
   // Checks whether the final row in the group is a partial row
   val rowPtrIsPartialRow = rowPtrData > rowPtrFinComparison
@@ -161,7 +158,9 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
 
   // Partial Sum Splitting
   val pSumReadAddr = RegInit(0.U(26.W))
-  val pSumWriteAddr = RegInit(0.U(32.W))
+  io.pSumRead.bits := pSumReadAddr
+  io.pSumRead.valid := dec.io.pSumInOutputSp && ((state === sDataMoveSum) || (state === sDataMoveDen) || (state === sDataMoveVal))
+  val pSumWriteAddr = RegInit(0.U(26.W))
   val pSumRowsRead = RegInit(cp.nColInDense.U(32.W))
   val groupSel_rowOffset = MuxTree(groupSel + 1.U, groupArray.map(_.io.selectedRowOffset))
   val pSumFin = ((pSumRowsRead >= groupSel_rowOffset) && (groupSel < (cp.nGroups-1).U)) || (pSumRowsRead >= (dec.io.rowSize - 1.U))
@@ -177,7 +176,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   }.otherwise{
      pSumRowsRead := 1.U
      pSumWriteAddr := 0.U
-     pSumReadAddr := dec.io.sramSum
+     pSumReadAddr := Mux(dec.io.pSumInOutputSp, 0.U, dec.io.sramSum)
   }
 dontTouch(pSumFin)
 
@@ -207,7 +206,8 @@ dontTouch(pSumFin)
         ((state === sDataMoveCol) && !(colFin && groupEnd)) -> colReadAddr,
         ((state === sDataMoveCol) && (colFin && groupEnd)) -> valReadAddr,
         ((state === sDataMoveVal) && !(valFin && groupEnd)) -> valReadAddr,
-        ((state === sDataMoveVal) && (valFin && groupEnd)) -> denReadAddr,
+        ((state === sDataMoveVal) && (valFin && groupEnd && !denseLoaded)) -> denReadAddr,
+        ((state === sDataMoveVal) && (valFin && groupEnd && denseLoaded)) -> pSumReadAddr,
         ((state === sDataMoveDen) && !(denFin)) -> denReadAddr,
         ((state === sDataMoveDen) && denFin) -> pSumReadAddr,
         ((state === sDataMoveSum)) -> pSumReadAddr
@@ -327,7 +327,7 @@ when(state === sCombine){
   for(i <- 0 until cp.nGroups){
 
     groupArray(i).io.addPartialSum := dec.io.partialSum
-    groupArray(i).io.pSumSPWrite.bits.data := Mux(dec.io.pSumInOutputSp, 0.U ,io.gbReadData.data)
+    groupArray(i).io.pSumSPWrite.bits.data := Mux(dec.io.pSumInOutputSp, Mux(RegNext(pSumReadAddr(5)),io.pSumReadData.data(511,256),io.pSumReadData.data(255,0)), io.gbReadData.data)
     groupArray(i).io.pSumSPWrite.bits.addr := pSumWriteAddr
     groupArray(i).io.pSumSPWrite.valid := (state === sDataMoveSum) && (groupSel === i.U)
     groupArbiter.io.in(i) <> groupArray(i).io.outputBufferWriteData
@@ -404,7 +404,6 @@ io.done := (state === sIdle) && !start
         when(groupEnd){
           state := sDataMoveCol
           colReadAddr := colReadAddr + bankBlockSizeBytes.U
-          nNonZeroPrevTotal := nNonZeroPrevTotal + dec.io.colSize
         }
       }.otherwise{
         rowPtrAddr := rowPtrAddr + (cp.blockSize/8).U
@@ -454,20 +453,9 @@ io.done := (state === sIdle) && !start
       }
     }
     is(sCompute){
-      when(!denseLoaded){
-        computeTimeOut := computeTimeOut + 1.U
-      }.otherwise{
-        computeTimer := computeTimer + 1.U
-      }
       when(computeDone){
         state := sCombine//Group
         denseLoaded := true.B
-      }.elsewhen(denseLoaded){
-        when(computeTimer === computeTimeOut){
-          state := sIdle
-          computeTimer := 0.U
-          computeSkipCount := computeSkipCount + 1.U
-        }
       }
     }
     is(sCombine){
@@ -476,5 +464,4 @@ io.done := (state === sIdle) && !start
       }
     }
   }
-  assert(computeSkipCount =/= 1000.U)
 }
