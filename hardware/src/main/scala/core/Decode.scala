@@ -17,7 +17,8 @@ import  ISA._
  *   - SOUT
  */
 class MemDecode extends Bundle{
-  val empty = UInt(123.W)
+  val empty = UInt(128.W)
+  val final_load = Bool()
   val ysize = UInt(M_YSIZE_BITS.W)
   val xsize = UInt(M_XSIZE_BITS.W)
   val sram_offset = UInt(M_SRAM_OFFSET_BITS.W)
@@ -139,6 +140,7 @@ class LoadDecode extends Module with ISAConstants{
     val ySize = Output(UInt(M_YSIZE_BITS.W))
     val dramOffset = Output(UInt(M_DRAM_OFFSET_BITS.W))
     val sramOffset = Output(UInt(M_SRAM_OFFSET_BITS.W))
+    val isFinalLoad = Output(Bool())
   })
   val dec = io.inst.asTypeOf(new MemDecode)
   io.isSeq := io.isVal || io.isCol || io.isPtr || io.isPsum
@@ -150,6 +152,7 @@ class LoadDecode extends Module with ISAConstants{
   io.ySize := dec.ysize
   io.sramOffset := dec.sram_offset
   io.dramOffset := dec.dram_offset
+  io.isFinalLoad := dec.final_load
 }
 
 /** ComputeDecode.

@@ -21,6 +21,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
     val me_rd = new MEReadMaster
     val valid = Input(Bool())
     val done = Output(Bool())
+    val isFinalLoad = Output(Bool())
     val spWrite = Decoupled(new SPWriteCmd(scratchType = "Global"))
     val ecnt = Output(UInt(regBits.W))
   })
@@ -52,6 +53,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
 
   // instruction queue
   dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)
+  io.isFinalLoad := dec.io.isFinalLoad
 
   val scratchSel = Cat(dec.io.isPsum, dec.io.isCol, dec.io.isPtr, !dec.io.isSeq, dec.io.isVal) // col,ptr,den,val
 
