@@ -22,12 +22,13 @@ class inst:
         inst = inst + '0'*(256-len(inst))
         return inst
 
-    def spMM(self, sram_offset_col = 0, sram_offset_ptr = 0, sram_offset_den = 0, sram_offset_val = 0, den_size = 0, col_size = 0, row_size = 0, pr_valid = 0, sram_offset_partial_sum = 0, add_partial_sum = 0, scratchpad_n_global_buffer = 0, pSum_size = 0):
+    def spMM(self, sram_offset_col = 0, sram_offset_ptr = 0, sram_offset_den = 0, sram_offset_val = 0, den_size = 0, col_size = 0, row_size = 0, pr_valid = 0, sram_offset_partial_sum = 0, add_partial_sum = 0, scratchpad_n_global_buffer = 0, pSum_size = 0, dense_loaded = 0):
         op = '10'
         inst = op[::-1] + binary_repr(sram_offset_col, 26)[::-1] + binary_repr(sram_offset_ptr, 26)[::-1] + binary_repr(sram_offset_den, 26)[::-1]
         inst = inst + binary_repr(sram_offset_val, 26)[::-1] + binary_repr(den_size, 26)[::-1] + binary_repr(col_size, 26)[::-1] + binary_repr(row_size, 26)[::-1] + binary_repr(pr_valid, 2)[::-1]
         inst = inst + binary_repr(sram_offset_partial_sum, 26)[::-1] + binary_repr(add_partial_sum, 1)[::-1] + binary_repr(scratchpad_n_global_buffer, 1)[::-1]
-        inst = inst + binary_repr(pSum_size, 26)
+        inst = inst + binary_repr(pSum_size, 26)[::-1]
+        inst = inst + binary_repr(dense_loaded, 1)[::-1]
         inst = inst + '0'*(256-len(inst))
         return inst
 

@@ -41,11 +41,11 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val done = Output(Bool())
   })
   val bankBlockSizeBytes = cp.bankBlockSize/8
-  val denseLoaded = RegInit(false.B)
 
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.computeInstQueueEntries))
   val dec = Module(new ComputeDecode)
+  val denseLoaded = dec.io.denseLoaded
 
   dontTouch(dec.io.sramSum)
   dontTouch(dec.io.pSumInOutputSp)
@@ -455,8 +455,7 @@ io.done := (state === sIdle) && !start
     }
     is(sCompute){
       when(computeDone){
-        state := sCombine//Group
-        denseLoaded := true.B
+        state := sCombine
       }
     }
     is(sCombine){
