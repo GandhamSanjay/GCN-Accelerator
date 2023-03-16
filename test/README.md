@@ -1,7 +1,7 @@
 # Simulation Process
 ## System Configuration
 - **Set Parameters:** Edit system parameters in [ZcuConfig.scala](../hardware/src/main/scala/core/ZcuConfig.scala)
-- **Recompile Verilog:** Change directory to GCN-Accelerator/hardware. Run 'rm -r verilog/' to remove existing Verilog source files. Then run 'make verilog' to generate Verilog source files with the new system parameters.
+- **Generate the Verilog Sources:** Change directory to GCN-Accelerator/hardware. Run 'rm -r verilog/' to remove existing Verilog source files. Then run 'make verilog' to generate Verilog source files with the new system parameters.
 - **Prepare Files for Simulation:** Run 'cocotbify -v verilog/Wrapper.v' to prepare the system for simulation with cocotb
 
 ## Running a Simulation
