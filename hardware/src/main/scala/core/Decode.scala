@@ -36,7 +36,7 @@ class SpMMDecode extends Bundle {
 
   val empty = UInt(15.W)
   val dense_loaded = Bool()
-  val pSum_size = UInt(C_XSIZE_BITS.W)
+  val nnz_per_group = UInt(C_XSIZE_BITS.W)
   val scratchpad_n_global_buffer = Bool()
   val add_partial_sum = Bool()
   val sram_offset_partial_sum = UInt(C_SRAM_OFFSET_BITS.W)
@@ -173,7 +173,7 @@ class ComputeDecode extends Module with ISAConstants{
     val sramSum = Output(UInt(C_SRAM_OFFSET_BITS.W))
     val partialSum = Output(Bool())
     val pSumInOutputSp = Output(Bool())
-    val pSumSize = Output(UInt(C_XSIZE_BITS.W))
+    val nNonZeroPerGroup = Output(UInt(C_XSIZE_BITS.W))
     val denseLoaded = Output(Bool())
   })
   val dec = io.inst.asTypeOf(new SpMMDecode)
@@ -187,7 +187,7 @@ class ComputeDecode extends Module with ISAConstants{
   io.sramSum := dec.sram_offset_partial_sum
   io.partialSum := dec.add_partial_sum
   io.pSumInOutputSp := dec.scratchpad_n_global_buffer
-  io.pSumSize := dec.pSum_size
+  io.nNonZeroPerGroup := dec.nnz_per_group
   io.denseLoaded := dec.dense_loaded
 }
 

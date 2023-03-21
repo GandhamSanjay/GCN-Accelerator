@@ -43,6 +43,8 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     val pSumSPWrite = Flipped(ValidIO(new SPWriteCmd))
     val ptrSpWrite = Flipped(Decoupled(new SPWriteCmd(mode = "single")))
     val nNonZero = Flipped(ValidIO(UInt(32.W)))
+    val rowPtrBegin = Flipped(ValidIO(UInt(32.W)))
+    val rowPtrEnd = Flipped(ValidIO(UInt(32.W)))
     val isPRWithNextGroup = Flipped(ValidIO(Bool()))
     val addPartialSum = Input(Bool())
     val prEntry = Output(new PRTableEntry)
@@ -56,18 +58,21 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val pulse = io.start && !RegNext(io.start)
   val rowPtrSize = RegEnable(io.nRowPtrInGroup.bits, io.nRowPtrInGroup.valid)
   val nNonZero = RegEnable(io.nNonZero.bits, io.nNonZero.valid)
-  val rowPtrBegin = RegInit(0.U(cp.blockSize.W))
-  val rowPtrEnd = RegInit(0.U(cp.blockSize.W))
+  val rowPtrBegin = if (groupID != 0)
+                      RegEnable(io.rowPtrBegin.bits, io.rowPtrBegin.valid)
+                    else
+                      0.U(32.W)
+  val rowPtrEnd = RegEnable(io.rowPtrEnd.bits, io.rowPtrEnd.valid)
   val totalNonZero = RegInit(0.U(cp.blockSize.W))
   val isPRWithNextGroup = RegEnable(io.isPRWithNextGroup.bits, io.isPRWithNextGroup.valid)
   dontTouch(isPRWithNextGroup)
   val rowOffset = if (groupID > 0) RegEnable(io.rowOffset.bits, io.rowOffset.valid) else 0.U
   io.selectedRowOffset := rowOffset
 
-  when(io.nNonZero.valid){
+  /*when(io.nNonZero.valid){
     rowPtrBegin := groupID.U << Log2(io.nNonZero.bits)
     rowPtrEnd := (groupID + 1).U << Log2(io.nNonZero.bits)
-  }
+  }*/
   /*when(io.nNonZero.valid){
     rowPtrBegin := rowPtrBegin + (groupID.U << Log2(io.nNonZero.bits))
     rowPtrEnd := rowPtrEnd + ((groupID + 1).U << Log2(io.nNonZero.bits))

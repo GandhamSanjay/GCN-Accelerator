@@ -69,7 +69,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val groupEnd = groupSel === (cp.nGroups - 1).U
   
   val nNonZero = dec.io.colSize
-  val nNonZeroPerGroup = nNonZero >> log2Ceil(cp.nGroups)
+  val nNonZeroPerGroup = dec.io.nNonZeroPerGroup
   val gbAddr = RegInit(0.U(C_SRAM_OFFSET_BITS.W))
   val gbRdata = io.gbReadData.data
 
@@ -88,12 +88,17 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val rowPtrIdxInBlock = rowPtrAddr(log2Ceil(bankBlockSizeBytes)-1,log2Ceil(cp.blockSize/8))
   val rowPtrData = MuxTree(rowPtrIdxInBlock, rowPtrDataBlock)
   val rowPtrReadAddr = Mux(start, dec.io.sramPtr, Mux(rowPtrFin, rowPtrAddr, rowPtrAddr + (cp.blockSize/8).U)) 
-  val rowPtrFinComparison = ((( groupSel + 1.U) << Log2(nNonZeroPerGroup)))
-  rowPtrFin := (rowPtrData >= rowPtrFinComparison && groupSel < (cp.nGroups-1).U) || nRowRead_q >= dec.io.rowSize
+  //val groupSelPlusOneTimesNNzPerGroup = (groupSel + 1.U) << Log2(nNonZeroPerGroup)
+  val groupSelPlusOneTimesNNzPerGroup = Reg(UInt(32.W))
+  when(start){
+    groupSelPlusOneTimesNNzPerGroup := nNonZeroPerGroup
+  }
+
+  rowPtrFin := (rowPtrData >= groupSelPlusOneTimesNNzPerGroup && groupSel < (cp.nGroups-1).U) || nRowRead_q >= dec.io.rowSize
   // Checks whether the final row in the group is a partial row
-  val rowPtrIsPartialRow = rowPtrData > rowPtrFinComparison
+  val rowPtrIsPartialRow = rowPtrData > groupSelPlusOneTimesNNzPerGroup
   //val firstRowPtr_alreadyRead = RegEnable(rowPtrIsPartialRow || (groupSel === 0.U), rowPtrFin === 0.U)
-  val firstRowPtr_alreadyRead = rowPtrIsPartialRow || ((groupSel + 1.U) << Log2(nNonZeroPerGroup) === rowPtrData) 
+  val firstRowPtr_alreadyRead = rowPtrIsPartialRow || (groupSelPlusOneTimesNNzPerGroup === rowPtrData) 
   val rowPtrWriteAddr = RegInit(0.U(C_SRAM_OFFSET_BITS.W))
   when(state === sDataMoveRow){
     when(rowPtrFin){
@@ -107,7 +112,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val colReadAddr = RegInit(0.U(32.W))
   val colWriteAddr = RegInit(0.U(32.W))
   val colReadBlockNum = RegInit(cp.nColInDense.U(32.W))
-  val colFin = (colReadBlockNum >= ((groupSel + 1.U) << Log2(nNonZeroPerGroup)))
+  val colFin = (colReadBlockNum >= (groupSelPlusOneTimesNNzPerGroup))
   when(state === sDataMoveCol){
     colReadBlockNum := colReadBlockNum + cp.nColInDense.U
   }.otherwise{
@@ -125,7 +130,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val valReadAddr = RegInit(0.U(32.W))
   val valWriteAddr = RegInit(0.U(32.W))
   val valReadBlockNum = RegInit(cp.nColInDense.U(32.W))
-  val valFin = (valReadBlockNum >= ((groupSel + 1.U) << Log2(nNonZeroPerGroup)))
+  val valFin = (valReadBlockNum >= (groupSelPlusOneTimesNNzPerGroup))
   when(state === sDataMoveVal){
     valReadBlockNum := valReadBlockNum + cp.nColInDense.U
   }.otherwise{
@@ -189,8 +194,10 @@ dontTouch(pSumFin)
     when(groupEnd){
       groupSel := 0.U
       nRowWritten_q := 0.U
+      groupSelPlusOneTimesNNzPerGroup := nNonZeroPerGroup
     }.otherwise{
       groupSel := groupSel + 1.U
+      groupSelPlusOneTimesNNzPerGroup := groupSelPlusOneTimesNNzPerGroup + nNonZeroPerGroup
       nRowWritten_q := 0.U
     }
   }.elsewhen((state === sDataMoveRow)){
@@ -327,6 +334,13 @@ when(state === sCombine){
 // group io
   for(i <- 0 until cp.nGroups){
 
+    groupArray(i).io.rowPtrBegin.bits := groupSelPlusOneTimesNNzPerGroup
+    if (i > 0)
+      groupArray(i).io.rowPtrBegin.valid := (groupSel === (i-1).U)
+    else
+      groupArray(i).io.rowPtrBegin.valid := true.B
+    groupArray(i).io.rowPtrEnd.bits := groupSelPlusOneTimesNNzPerGroup
+    groupArray(i).io.rowPtrEnd.valid := (groupSel === i.U)
     groupArray(i).io.addPartialSum := dec.io.partialSum
     groupArray(i).io.pSumSPWrite.bits.data := Mux(dec.io.pSumInOutputSp, Mux(RegNext(pSumReadAddr(5)),io.pSumReadData.data(511,256),io.pSumReadData.data(255,0)), io.gbReadData.data)
     groupArray(i).io.pSumSPWrite.bits.addr := pSumWriteAddr

@@ -95,8 +95,8 @@ den = np.array([[2, 2],
             [1, 2]])
 nPEs = 16
 # ((val,col,row), I, den, O) = dataGen.randSP(spDim = (256, 64), denDim = (64,8), numPEs = nPEs, numSparseValues = 512)
-((A_val,A_col,A_row), A, A_padded, den, A_O) = dataGen.randSP(spDim = (512, 64), denDim = (64,8), numPEs = nPEs, numSparseValues = 512, colTileNum = 0, nTiles = 2)
-((B_val,B_col,B_row), B, B_padded, den, B_O) = dataGen.randSP(spDim = (512, 64), denDim = (64,8), numPEs = nPEs, numSparseValues = 512, colTileNum = 1, nTiles = 2, W=den)
+((A_val,A_col,A_row), A, A_padded, den, A_O) = dataGen.randSP(spDim = (2048, 128), denDim = (128,8), numPEs = nPEs, numSparseValues = 5*8*16, colTileNum = 0, nTiles = 2)
+((B_val,B_col,B_row), B, B_padded, den, B_O) = dataGen.randSP(spDim = (2048, 128), denDim = (128,8), numPEs = nPEs, numSparseValues = 3*8*16, colTileNum = 1, nTiles = 2, W=den)
 
 
 
@@ -195,7 +195,7 @@ instr = instr + instGen.load(xsize = A_col.size, id = 'col', dram_offset = colAd
 instr = instr + instGen.load(xsize = A_val.size, id = 'val', dram_offset = valAddr, sram_offset = valAddr)
 instr = instr + instGen.load(xsize = den.size, id = 'den', dram_offset = denAddr, sram_offset = denAddr, final_load = 1)
 # instr = instr + instGen.load(xsize = P.size, id = 'den', dram_offset = sumAddr, sram_offset = sumAddr, final_load = 1)
-instr = instr + instGen.spMM(sram_offset_col = colAddr, sram_offset_ptr = rowAddr, sram_offset_den = denAddr, sram_offset_val = valAddr, den_size = den.size, col_size = A_col.size, row_size = A_row.size, pr_valid = 1, sram_offset_partial_sum = sumAddr, add_partial_sum = 0, scratchpad_n_global_buffer = 0, pSum_size = P.shape[0], dense_loaded = 0)
+instr = instr + instGen.spMM(sram_offset_col = colAddr, sram_offset_ptr = rowAddr, sram_offset_den = denAddr, sram_offset_val = valAddr, den_size = den.size, col_size = A_col.size, row_size = A_row.size, pr_valid = 1, sram_offset_partial_sum = sumAddr, add_partial_sum = 0, scratchpad_n_global_buffer = 0, nnz_per_group = int(A_col.size/nPEs), dense_loaded = 0)
 instr = instr + instGen.store(xsize = O.size, dram_offset = outAddr, sram_offset = 0)
 instr = instr + instGen.load(xsize = B_row.size, id = 'row', dram_offset = rowAddr + int(len(A_rowBin)/8), sram_offset = rowAddr)
 instr = instr + instGen.load(xsize = B_col.size, id = 'col', dram_offset = colAddr + int(len(A_colBin)/8), sram_offset = colAddr)
@@ -203,7 +203,7 @@ instr = instr + instGen.load(xsize = B_val.size, id = 'val', dram_offset = valAd
 instr = instr + instGen.load(xsize = B_val.size, id = 'val', dram_offset = valAddr + int(len(A_valBin)/8), sram_offset = valAddr, final_load = 1)
 #instr = instr + instGen.load(xsize = den.size, id = 'den', dram_offset = denAddr, sram_offset = denAddr)
 #instr = instr + instGen.load(xsize = P.size, id = 'den', dram_offset = sumAddr, sram_offset = sumAddr, final_load = 1)
-instr = instr + instGen.spMM(sram_offset_col = colAddr, sram_offset_ptr = rowAddr, sram_offset_den = denAddr, sram_offset_val = valAddr, den_size = den.size, col_size = B_col.size, row_size = B_row.size, pr_valid = 1, sram_offset_partial_sum = sumAddr, add_partial_sum = 1, scratchpad_n_global_buffer = 1, pSum_size = P.shape[0], dense_loaded = 1)
+instr = instr + instGen.spMM(sram_offset_col = colAddr, sram_offset_ptr = rowAddr, sram_offset_den = denAddr, sram_offset_val = valAddr, den_size = den.size, col_size = B_col.size, row_size = B_row.size, pr_valid = 1, sram_offset_partial_sum = sumAddr, add_partial_sum = 1, scratchpad_n_global_buffer = 1, nnz_per_group = int(B_col.size/nPEs), dense_loaded = 1)
 instr = instr + instGen.store(xsize = O.size, dram_offset = outAddr+512*pow(2,10), sram_offset = 0)
 
 # Save output metadata
