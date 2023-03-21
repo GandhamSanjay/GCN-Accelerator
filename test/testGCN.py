@@ -179,10 +179,11 @@ async def my_first_test(dut):
     coreStateLookup = ['Idle','Load','Compute','Store','Finish']
     coreTimeFile = open('core_cycle_data.csv', 'w')
     coreTimeFile.write('Tile #')
+    coreLoadTime = 0
     for state in coreStateLookup:
         coreTimeFile.write(',')
         coreTimeFile.write(state)
-    computeTimeFile.write('\n')
+    coreTimeFile.write('\n')
 
     queueMonitor = QueueEntryMonitor(tb.nPEs)
 
@@ -217,10 +218,16 @@ async def my_first_test(dut):
                 coreTimeFile.write(str(tileNumber))
                 for i in range(len(coreStateLookup)):
                     coreTimeFile.write(',')
-                    coreTimeFile.write(str(coreStateTimeTile[i]))
+                    if i != 1:
+                        coreTimeFile.write(str(coreStateTimeTile[i]))
+                    else:
+                        coreTimeFile.write(str(coreLoadTime))
                 coreTimeFile.write('\n')
 
             tileNumber = tileNumber + 1
+
+            coreLoadTime = coreStateTimeTile[1]
+
             # Reset compute tile state cycles
             computeStateTimeTile = [0]*10
             # Reset core tile state cycles
@@ -263,22 +270,25 @@ async def my_first_test(dut):
     computeTimeFile.write('\n')
 
     # Output cumulative compute state cycles
-    computeTimeFile.write('-1')
+    computeTimeFile.write('Total')
     for i in range(len(computeStateLookup)):
         computeTimeFile.write(',')
         computeTimeFile.write(str(computeStateTimeCumulative[i]))
     computeTimeFile.write('\n')
     computeTimeFile.close()
 
-    # Output tile core state cycles
+    # Output final tile core state cycles
     coreTimeFile.write(str(tileNumber))
     for i in range(len(coreStateLookup)):
         coreTimeFile.write(',')
-        coreTimeFile.write(str(coreStateTimeTile[i]))
+        if i != 1:
+            coreTimeFile.write(str(coreStateTimeTile[i]))
+        else:
+            coreTimeFile.write(str(coreLoadTime))
     coreTimeFile.write('\n')
 
     # Output cumulative core state cycles
-    coreTimeFile.write('-1')
+    coreTimeFile.write('Total')
     for i in range(len(coreStateLookup)):
         coreTimeFile.write(',')
         coreTimeFile.write(str(coreStateTimeCumulative[i]))
