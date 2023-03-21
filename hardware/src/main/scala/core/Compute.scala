@@ -442,8 +442,13 @@ io.done := (state === sIdle) && !start
     is(sDataMoveDen){
       denReadAddr := denReadAddr + bankBlockSizeBytes.U
       when(denFin){
-        state := sDataMoveSum
         pSumReadAddr := pSumReadAddr + bankBlockSizeBytes.U
+        
+        when(dec.io.partialSum){
+          state := sDataMoveSum
+        }.otherwise{
+          state := sCompute
+        }
       }
     }
     is(sDataMoveSum){
