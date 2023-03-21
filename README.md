@@ -50,5 +50,5 @@
 |26 |SRAM Partial Sum Offset |[185:160] |SRAM offset of the partial sum matrix |
 |1 |Add partial sum |[186] |Flag to indicate if there is a partial sum that needs to be added |
 |1 |Scratchpad or Global Buffer |[187] |Flag to indicate where the partial sum matrix is located, 1 means it is in the output scratchpad, 0 means it is in the global buffer |
-|26 |Partial Sum Size |[213:188] |Size of the partial sum matrix |
+|26 |NNZ Per Group |[213:188] |Number of nonzero elements per group |
 |1 |Dense loaded |[214] |Flag to indicate if the dense matrix needs to be copied from the global buffer to the local buffers |
