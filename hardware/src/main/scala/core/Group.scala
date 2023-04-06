@@ -53,9 +53,19 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     val outputBufferWriteData = Decoupled(new SPWriteCmd)
     val partialRowWithPrev = Output(new partialRowOutputWithAddress)
     val partialRowWithNext = Output(new partialRowOutput)
+    val outputQueueEmpty = Output(Bool())
+    val outputsComplete = Input(Bool())
   })
   
-  val pulse = io.start && !RegNext(io.start)
+  val startSignal = io.start && !RegNext(io.start)
+  val startLatch = RegInit(false.B)
+  when(startSignal && !io.outputsComplete){
+    startLatch := true.B
+  }.elsewhen(io.outputsComplete){
+    startLatch := false.B
+  }
+  val pulse = (startSignal || startLatch) && io.outputsComplete
+
   val rowPtrSize = RegEnable(io.nRowPtrInGroup.bits, io.nRowPtrInGroup.valid)
   val nNonZero = RegEnable(io.nNonZero.bits, io.nNonZero.valid)
   val rowPtrBegin = if (groupID != 0)
@@ -123,7 +133,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   Output:
     1. rowPtrData1, rowPtrData2, (currRowPtr = rowPtr1Data) and peReq goes to D2.
   */
-  val d1Queue = Module(new Queue(new rowPtrData(), 512))
+  val d1Queue = Module(new Queue(new rowPtrData(), 2048))
   assert(d1Queue.io.enq.ready === true.B)
   val d1_reqValid_q = Reg(Bool())
   val sIdle :: sRowPtr1 :: sRowPtr2  :: Nil = Enum(3)
@@ -385,6 +395,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
 
   // Output buffer
   val outBuff = Module(new Queue(new SPWriteCmd, cp.PEOutputBufferDepth))
+  io.outputQueueEmpty := ~outBuff.io.deq.valid
   
   outBuff.io.enq.bits.data := formattedOutput
   outBuff.io.enq.bits.addr := rowAddress

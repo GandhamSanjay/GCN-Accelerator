@@ -39,6 +39,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val spOutWrite = Decoupled(new SPWriteCmd)
     val valid = Input(Bool())
     val done = Output(Bool())
+    val start = Input(Bool())
   })
   val bankBlockSizeBytes = cp.bankBlockSize/8
 
@@ -331,6 +332,9 @@ when(state === sCombine){
   aggQueue.io.enq.valid := false.B
 }
 
+  val allOutputQueuesEmpty = groupArray.map(_.io.outputQueueEmpty).reduce(_&&_)
+  dontTouch(allOutputQueuesEmpty)
+
 // group io
   for(i <- 0 until cp.nGroups){
 
@@ -339,6 +343,7 @@ when(state === sCombine){
       groupArray(i).io.rowPtrBegin.valid := (groupSel === (i-1).U)
     else
       groupArray(i).io.rowPtrBegin.valid := true.B
+    groupArray(i).io.outputsComplete := allOutputQueuesEmpty
     groupArray(i).io.rowPtrEnd.bits := groupSelPlusOneTimesNNzPerGroup
     groupArray(i).io.rowPtrEnd.valid := (groupSel === i.U)
     groupArray(i).io.addPartialSum := dec.io.partialSum
@@ -399,7 +404,7 @@ when(state === sCombine){
       )).asBool  && (groupSel === i.U))
   }
 val computeDone = groupArray.map(_.io.done).reduce(_&&_)
-io.done := (state === sIdle) && !start
+io.done := (state === sIdle) && !io.start
 
 //state machine
   switch(state){
