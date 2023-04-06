@@ -27,7 +27,11 @@ class TB(object):
         self.nDenseCols = 0
         self.nSparseRows = 0
         self.nPEs = 0
-        self.load_result_matrix()
+        self.nMultiplications = 0
+        self.instCount = 12
+        self.out = np.zeros((1,1))
+        self.load_meta_data()
+        # self.load_result_matrix()
 
 	#start the clock as a parallel process.
         cocotb.start_soon(Clock(self.dut.ap_clk, 4, units="ns").start())
@@ -59,26 +63,30 @@ class TB(object):
         finally:
             f.close()
 
-    def load_result_matrix(self):
-        infile = open('output_matrix.txt','r')
-        O = np.loadtxt(infile)
-        infile.close()
+    def load_meta_data(self):
         metaDataF = open('metaData.txt','r')
         self.outputPtr = int(metaDataF.readline(),10)
         self.nSparseRows = int(metaDataF.readline(),10)
         self.nDenseCols = int(metaDataF.readline(),10)
         self.nPEs = int(metaDataF.readline(),10)
+        self.nMultiplications = int(metaDataF.readline(),10)
+        self.instCount = int(metaDataF.readline(),10)
         metaDataF.close()
-        addr = self.outputPtr
-        self.memory.seek(addr)
-        for row in O:
-            for value in np.flip(row):
-                self.memory.write(int(value).to_bytes(4,'big'))
 
-    async def launch(self, inst_cnt, b_addr = 0x00000000):
+    def load_result_matrix(self, outputNumber):
+        infile = open('output_matrix_' + str(outputNumber) + '.txt','r')
+        self.out = np.loadtxt(infile)
+        infile.close()
+        # addr = self.outputPtr
+        # self.memory.seek(addr)
+        # for row in O:
+        #     for value in np.flip(row):
+        #         self.memory.write(int(value).to_bytes(4,'big'))
+
+    async def launch(self, b_addr = 0x00000000):
         await Timer(20, units='ns')
         await self.axi_master.write_dwords(0x0004, [b_addr], byteorder = 'little')
-        await self.axi_master.write_dwords(0x0008, [inst_cnt], byteorder = 'little')
+        await self.axi_master.write_dwords(0x0008, [self.instCount], byteorder = 'little')
         await self.axi_master.write_dwords(0x0000, [1], byteorder = 'little')
 
 #@cocotb.test()
@@ -101,12 +109,17 @@ class QueueEntryMonitor(object):
     def eval(self, dut):
         empty = True
         for i in range(self.nPEs):
-            push_val = int(eval('dut.core.compute.groupArray_' + str(i) + '.outBuff.io_enq_valid'))
-            pop_val = int(eval('dut.core.compute.groupArray_' + str(i) + '.outBuff.io_deq_ready')) and int(eval('dut.core.compute.groupArray_' + str(i) + '.outBuff.io_deq_valid'))
-            self.entries[i] = self.entries[i] + push_val - pop_val
+            push_val = int(eval('dut.core.compute.groupArray_' + str(i) + '.outBuff.io_enq_valid')) == 1 and int(eval('dut.core.compute.groupArray_' + str(i) + '.outBuff.io_enq_ready')) == 1
+            pop_val = int(eval('dut.core.compute.groupArray_' + str(i) + '.outBuff.io_deq_ready')) == 1 and int(eval('dut.core.compute.groupArray_' + str(i) + '.outBuff.io_deq_valid')) == 1
+            self.entries[i] = self.entries[i] + int(push_val) - int(pop_val)
             if (self.entries[i] > self.maxEntries[i]):
                 self.maxEntries[i] = self.entries[i]
 
+    def state(self):
+        results = 'Current number of entries:\n'
+        for i in range(self.nPEs):
+            results = results + 'PE' + str(i) + ': ' + str(self.entries[i]) + '\n'
+        return results
         
     def report(self):
         results = "Largest number of entries = " + str(max(self.maxEntries)) + '\n'
@@ -129,7 +142,7 @@ class QueueEntryMonitor(object):
 async def my_first_test(dut):
     """Try accessing the design."""
     tb = TB(dut)
-    await tb.launch(inst_cnt = 12)
+    await tb.launch()
     addr = 0x000c
 
     #cocotb.start(verify_output(dut, tb))
@@ -158,7 +171,7 @@ async def my_first_test(dut):
     numWritten = 0
     errorCount = 0    
     lowestAddress = 6160000
-    tileNumber = 0
+    outputNumber = 0
     outputTileOffset = 0
     outputMatrixSize = tb.nDenseCols * tb.nSparseRows
 
@@ -185,72 +198,92 @@ async def my_first_test(dut):
         coreTimeFile.write(state)
     coreTimeFile.write('\n')
 
+    prevCoreState = 0
+
     queueMonitor = QueueEntryMonitor(tb.nPEs)
 
     # for i in range(64000):
-    while dut.core.state != 4 or (not queueMonitor.done()):
+    while dut.core.state != 4 or (not dut.core.compute.allOutputQueuesEmpty):
         await RisingEdge(dut.core_clock)
 
         queueMonitor.eval(dut)
         #print(str(eval('dut.core.compute.groupArray_0.clock')))
 
-        # Update the tile number and address offset
-        if (dut.core.compute.start == True and dut.core.state == 2):
-            outputTileOffset = tileNumber * outputMatrixSize * 4
-            print('New outputTileOffset = ' + str(outputTileOffset))
-            if (tileNumber > 0):
+        if (int(dut.core.state) == 1 and prevCoreState != 1 and outputNumber != 0):
+            # Output tile compute state cycles
+            computeTimeFile.write(str(outputNumber))
+            for i in range(len(computeStateLookup)):
+                computeTimeFile.write(',')
+                computeTimeFile.write(str(computeStateTimeTile[i]))
+            computeTimeFile.write('\n')
+            computeTimeFile.close()
+            computeTimeFile = open('compute_cycle_data.csv','a')
 
-                # Print missing outputs from this tile, if any exist
-                if (numWritten != tb.nSparseRows*tileNumber):
-                    print("Tile #" + str(tileNumber) + " failed to output the following rows:\n")
-                    for i in range(len(addressOutputCounter)):
-                        if (addressOutputCounter[i] != tileNumber):
-                            print(str(i*32)+'\n')
-
-                # Output tile compute state cycles
-                computeTimeFile.write(str(tileNumber))
-                for i in range(len(computeStateLookup)):
-                    computeTimeFile.write(',')
-                    computeTimeFile.write(str(computeStateTimeTile[i]))
-                computeTimeFile.write('\n')
-
-                # Output tile core state cycles
-                coreTimeFile.write(str(tileNumber))
-                for i in range(len(coreStateLookup)):
-                    coreTimeFile.write(',')
-                    if i != 1:
-                        coreTimeFile.write(str(coreStateTimeTile[i]))
-                    else:
-                        coreTimeFile.write(str(coreLoadTime))
-                coreTimeFile.write('\n')
-
-            tileNumber = tileNumber + 1
-
-            coreLoadTime = coreStateTimeTile[1]
-
+            # Output tile core state cycles
+            coreTimeFile.write(str(outputNumber))
+            for i in range(len(coreStateLookup)):
+                coreTimeFile.write(',')
+                coreTimeFile.write(str(coreStateTimeTile[i]))
+            coreTimeFile.write('\n')
+            coreTimeFile.close()
+            coreTimeFile = open('core_cycle_data.csv', 'a')
             # Reset compute tile state cycles
             computeStateTimeTile = [0]*10
             # Reset core tile state cycles
             coreStateTimeTile = [0]*10
+
+        prevCoreState = int(dut.core.state)
+    
+
+        # Update the tile number and address offset
+        if (dut.core.compute.groupArray_0.pulse == True and dut.core.state == 2):
+            
+            tb.load_result_matrix(outputNumber)
+            print("Output matrix #" + str(outputNumber) + ' loaded')
+
+            if (outputNumber > 0):
+                # Print missing outputs from this tile, if any exist
+                if (numWritten != tb.nSparseRows*outputNumber):
+                    print("Tile #" + str(outputNumber) + " failed to output the following rows:\n")
+                    for i in range(len(addressOutputCounter)):
+                        if (addressOutputCounter[i] != outputNumber):
+                            print(str(i*32))
+
+
+            outputNumber = outputNumber + 1
 
 
         # Monitor Output Scratchpad
         if (dut.core.outputScratchpad_io_writeEn.value):
             addressOutputCounter[int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)] = addressOutputCounter[int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)] + 1
             numWritten = numWritten + 1
-            tb.memory.seek(dut.core.outputScratchpad_io_spWrite_addr.value + tb.outputPtr + outputTileOffset)
-            numpyVals = tb.memory.read(tb.nDenseCols * 4)
+            # tb.memory.seek(dut.core.outputScratchpad_io_spWrite_addr.value + tb.outputPtr)
+            # numpyVals = tb.memory.read(tb.nDenseCols * 4)
+            # bitStr = ''
+            # for num in numpyVals:
+            #     bitStr =  bitStr + format(num, '08b')
+            #     #print(format(num, '08b'))
+            # if bitStr != str(dut.core.outputScratchpad_io_spWrite_data.value):
+            #     print("Address: " + str(int(dut.core.outputScratchpad_io_spWrite_addr.value)))
+            #     print("NumPy:\t" + str(bitStr) + "\nDut:\t"+str(dut.core.outputScratchpad_io_spWrite_data.value))
+            #     errorCount = errorCount + 1
+            #     # if (int(dut.core.outputScratchpad_io_spWrite_addr.value) < lowestAddress):
+            #         # lowestAddress = int(dut.core.outputScratchpad_io_spWrite_addr.value)
+            # assert(bitStr == str(dut.core.outputScratchpad_io_spWrite_data.value))
+            row = int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)
             bitStr = ''
-            for num in numpyVals:
-                bitStr =  bitStr + format(num, '08b')
-                #print(format(num, '08b'))
+            for val in tb.out[row]:
+                bitStr = np.binary_repr(int(val), 32) + bitStr
+                # print(val)
             if bitStr != str(dut.core.outputScratchpad_io_spWrite_data.value):
                 print("Address: " + str(int(dut.core.outputScratchpad_io_spWrite_addr.value)))
                 print("NumPy:\t" + str(bitStr) + "\nDut:\t"+str(dut.core.outputScratchpad_io_spWrite_data.value))
                 errorCount = errorCount + 1
                 # if (int(dut.core.outputScratchpad_io_spWrite_addr.value) < lowestAddress):
                     # lowestAddress = int(dut.core.outputScratchpad_io_spWrite_addr.value)
+                # print(queueMonitor.state())
             assert(bitStr == str(dut.core.outputScratchpad_io_spWrite_data.value))
+
 
         # Monitor Compute State
         computeStateTimeTile[int(dut.core.compute.state)] = computeStateTimeTile[int(dut.core.compute.state)] + 1
@@ -263,7 +296,7 @@ async def my_first_test(dut):
     #print("There were " + str(errorCount) + " invalid outputs\n")
 
     # Output final tile compute state cycles
-    computeTimeFile.write(str(tileNumber))
+    computeTimeFile.write(str(outputNumber))
     for i in range(len(computeStateLookup)):
         computeTimeFile.write(',')
         computeTimeFile.write(str(computeStateTimeTile[i]))
@@ -278,7 +311,7 @@ async def my_first_test(dut):
     computeTimeFile.close()
 
     # Output final tile core state cycles
-    coreTimeFile.write(str(tileNumber))
+    coreTimeFile.write(str(outputNumber))
     for i in range(len(coreStateLookup)):
         coreTimeFile.write(',')
         if i != 1:
@@ -298,15 +331,15 @@ async def my_first_test(dut):
     print(queueMonitor.report())
 # 
     # print("First address to error was: " + str(lowestAddress))
-    if (numWritten != tb.nSparseRows*tileNumber):
-        print(str(numWritten) + " rows were written. The output should have had " + str(tb.nSparseRows*tileNumber) + " rows\n")
-        print("Tile #" + str(tileNumber) + " failed to output the following rows:")
+    if (numWritten != tb.nSparseRows*outputNumber):
+        print(str(numWritten) + " rows were written. The output should have had " + str(tb.nSparseRows*outputNumber) + " rows\n")
+        print("Tile #" + str(outputNumber) + " failed to output the following rows:")
         for i in range(len(addressOutputCounter)):
-            if (addressOutputCounter[i] != tileNumber):
+            if (addressOutputCounter[i] != outputNumber):
                 print(str(i*32))
         print('\n')
 
-    assert(numWritten == tb.nSparseRows*tileNumber)
+    assert(numWritten == tb.nSparseRows*outputNumber)
 
 
     #await Timer(10, units='us')

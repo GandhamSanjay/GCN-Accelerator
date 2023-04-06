@@ -95,8 +95,8 @@ den = np.array([[2, 2],
             [1, 2]])
 nPEs = 16
 # ((val,col,row), I, den, O) = dataGen.randSP(spDim = (256, 64), denDim = (64,8), numPEs = nPEs, numSparseValues = 512)
-((A_val,A_col,A_row), A, A_padded, den, A_O) = dataGen.randSP(spDim = (2048, 128), denDim = (128,8), numPEs = nPEs, numSparseValues = 5*8*16, colTileNum = 0, nTiles = 2)
-((B_val,B_col,B_row), B, B_padded, den, B_O) = dataGen.randSP(spDim = (2048, 128), denDim = (128,8), numPEs = nPEs, numSparseValues = 3*8*16, colTileNum = 1, nTiles = 2, W=den)
+((A_val,A_col,A_row), A, A_padded, den, A_O) = dataGen.randSP(spDim = (128, 128), denDim = (128,8), numPEs = nPEs, numSparseValues = 1*8*16, colTileNum = 0, nTiles = 2)
+((B_val,B_col,B_row), B, B_padded, den, B_O) = dataGen.randSP(spDim = (128, 128), denDim = (128,8), numPEs = nPEs, numSparseValues = 3*8*16, colTileNum = 1, nTiles = 2, W=den)
 
 
 
@@ -164,9 +164,11 @@ for i in range(P.shape[0]):
 
 # Save result matrix
 # O = np.vstack( (O + P, O + (O + P)) )
-O = np.vstack((A_O, A_O + B_O))
-print(f"\nCombined output matrix (hex) is = \n{O}")
-np.savetxt('output_matrix.txt',O)
+# O = np.vstack((A_O, A_O + B_O))
+# print(f"\nCombined output matrix (hex) is = \n{O}")
+# np.savetxt('output_matrix.txt',O)
+np.savetxt('output_matrix_0.txt', A_O)
+np.savetxt('output_matrix_1.txt', A_O+B_O)
 
 print("Result data saved")
 # Load result matrix
@@ -208,10 +210,12 @@ instr = instr + instGen.store(xsize = O.size, dram_offset = outAddr+512*pow(2,10
 
 # Save output metadata
 metaDataF = open('metaData.txt','w')
-metaDataF.write(str(outAddr)+'\n')
-metaDataF.write(str(A.shape[0]) + '\n')
-metaDataF.write(str(den.shape[1])+'\n')
-metaDataF.write(str(nPEs) +'\n')
+metaDataF.write(str(outAddr)+'\n')      # Where to store the result data for comparison
+metaDataF.write(str(A.shape[0]) + '\n') # Number of rows in the output matrices
+metaDataF.write(str(den.shape[1])+'\n') # Number of columns in the output matrices
+metaDataF.write(str(nPEs) +'\n')        # Number of PEs in the accelerator
+metaDataF.write('2\n')                  # Number of multiplications
+metaDataF.write('12\n')                 # Number of instructions
 metaDataF.close()
 
 instCount = len(instr)/256
