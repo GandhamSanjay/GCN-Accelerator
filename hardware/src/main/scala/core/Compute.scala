@@ -169,8 +169,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   io.pSumRead.valid := dec.io.pSumInOutputSp && ((state === sDataMoveSum) || (state === sDataMoveDen) || (state === sDataMoveVal))
   val pSumWriteAddr = RegInit(0.U(26.W))
   val pSumRowsRead = RegInit(cp.nColInDense.U(32.W))
-  val groupSel_rowOffset = MuxTree(groupSel + 1.U, groupArray.map(_.io.selectedRowOffset))
-  val pSumFin = ((pSumRowsRead >= groupSel_rowOffset) && (groupSel < (cp.nGroups-1).U)) || (pSumRowsRead >= (dec.io.rowSize - 1.U))
+  val pSumFin = pSumRowsRead >= (dec.io.rowSize - 1.U)
 
   when(state === sDataMoveSum){
      pSumRowsRead :=  pSumRowsRead + 1.U
@@ -270,11 +269,30 @@ val groupOutputReg_valid = RegEnable(groupArbiter.io.out.valid, outputArbiter.io
 outputArbiter.io.in(1).bits := groupOutputReg
 outputArbiter.io.in(1).valid := groupOutputReg_valid
 groupArbiter.io.out.ready := outputArbiter.io.in(1).ready
+val delayedOutputArbiterData = RegNext(outputArbiter.io.out.bits.data)
 
+
+// Partial sum buffer
+val spPSum = Module(new BankedScratchpad(scratchType = "Den"))
+spPSum.io.spWrite.data := Mux(dec.io.pSumInOutputSp, Mux(RegNext(pSumReadAddr(5)),io.pSumReadData.data(511,256),io.pSumReadData.data(255,0)), io.gbReadData.data)
+spPSum.io.spWrite.addr := pSumWriteAddr
+spPSum.io.writeEn := state === sDataMoveSum
+
+// Read partial sum row
+val denCol  = RegInit(VecInit(Seq.tabulate(cp.nPE)(n => n.U(M_SRAM_OFFSET_BITS.W)))) 
+for (i <- 0 until cp.nPE){
+    spPSum.io.spReadCmd(i).addr := outputArbiter.io.out.bits.addr + (denCol(i) << log2Ceil(cp.blockSize/8))
+}
+val pSumRow = spPSum.io.spReadData.map(_.data)
+val delayedOutputArbiterRow = for(i <- 0 until cp.nColInDense)yield{delayedOutputArbiterData(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
+val accumulatedRow = delayedOutputArbiterRow.zip(pSumRow).map{case(x,y) => Mux(dec.io.partialSum, x+y, x)}
+val formattedOutput = accumulatedRow.map(_(cp.blockSize-1, 0)).reverse.reduce(Cat(_,_))
 
 //Output connections
-io.spOutWrite <> outputArbiter.io.out
-
+io.spOutWrite.valid := RegNext(outputArbiter.io.out.valid)
+io.spOutWrite.bits.addr := RegNext(outputArbiter.io.out.bits.addr)
+io.spOutWrite.bits.data := formattedOutput
+outputArbiter.io.out.ready := io.spOutWrite.ready
 
 
 when(state === sCombine){
@@ -346,10 +364,6 @@ when(state === sCombine){
     groupArray(i).io.outputsComplete := allOutputQueuesEmpty
     groupArray(i).io.rowPtrEnd.bits := groupSelPlusOneTimesNNzPerGroup
     groupArray(i).io.rowPtrEnd.valid := (groupSel === i.U)
-    groupArray(i).io.addPartialSum := dec.io.partialSum
-    groupArray(i).io.pSumSPWrite.bits.data := Mux(dec.io.pSumInOutputSp, Mux(RegNext(pSumReadAddr(5)),io.pSumReadData.data(511,256),io.pSumReadData.data(255,0)), io.gbReadData.data)
-    groupArray(i).io.pSumSPWrite.bits.addr := pSumWriteAddr
-    groupArray(i).io.pSumSPWrite.valid := (state === sDataMoveSum) && (groupSel === i.U)
     groupArbiter.io.in(i) <> groupArray(i).io.outputBufferWriteData
     groupArray(i).io.nRowPtrInGroup.bits := nRowWritten
     groupArray(i).io.nRowPtrInGroup.valid := (nRowWrittenValid && groupSel === i.U)
@@ -472,9 +486,7 @@ io.done := (state === sIdle) && !io.start
     }
     is(sDataMoveSum){
       when(pSumFin){
-        when(groupEnd){
-          state := sCompute
-        }
+        state := sCompute
       }
     }
     is(sCompute){
