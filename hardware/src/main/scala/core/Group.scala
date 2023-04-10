@@ -48,9 +48,9 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     val prEntry = Output(new PRTableEntry)
     val start = Input(Bool())
     val done = Output(Bool())
-    val outputBufferWriteData = Decoupled(new SPWriteCmd)
-    val partialRowWithPrev = Output(new partialRowOutputWithAddress)
-    val partialRowWithNext = Output(new partialRowOutput)
+    val outputBufferWriteData = Vec(cp.groupSize, Decoupled(new SPWriteCmd))
+    val partialRowWithPrev = Vec(cp.groupSize, Output(new partialRowOutputWithAddress))
+    val partialRowWithNext = Vec(cp.groupSize, Output(new partialRowOutput))
     val outputQueueEmpty = Output(Bool())
     val outputsComplete = Input(Bool())
   })
@@ -97,7 +97,9 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val spVal = Module(new Scratchpad(scratchType = "Val", masked = false))
   val spCol = Module(new Scratchpad(scratchType = "Col", masked = false))
   val spPtr = Module(new SingleScratchpad(scratchType = "Ptr", masked = false))
-  val spDen = Module(new BankedScratchpad(scratchType = "Den"))
+  val spDen = for(i <- 0 until cp.groupSize) yield {
+    Module(new BankedScratchpad(scratchType = "Den"))
+  }
 
 
   io.spWrite.bits.spWriteCmd <> spVal.io.spWrite
@@ -332,7 +334,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   spVal.io.spReadCmd.addr := (d2_currRowPtr_q << log2Ceil(blockSizeBytes))
   val dr_denCol  = RegInit(VecInit(Seq.tabulate(cp.nPE)(n => n.U(M_SRAM_OFFSET_BITS.W)))) 
   for( i<-0 until cp.nPE){
-    spDen.io.spReadCmd(i).addr := ((dr_colIdx << log2Ceil(blockSizeBytes)) << log2Ceil(cp.nColInDense)) + (dr_denCol(i) << log2Ceil(blockSizeBytes))
+    spDen.map(_.io.spReadCmd(i).addr).zip(0 to cp.nPE).map{case(spRd, idx) => spRd := ((dr_colIdx << log2Ceil(blockSizeBytes)) << log2Ceil(cp.nColInDense)) + (dr_denCol(i) << log2Ceil(blockSizeBytes))} 
   }
 
   val noOffsetRowAddress = d2_rowNum_q - 1.U
@@ -352,29 +354,31 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   Cycles = 1
   */
   val m_isNewRow = dr_isNewOutput_q
-  val m_acc_q = RegInit(VecInit(Seq.fill(cp.nColInDense)(0.U(cp.blockSize.W)))) 
+  val m_acc_q = for(i <- 0 until cp.groupSize) yield {RegInit(VecInit(Seq.fill(cp.nColInDense)(0.U(cp.blockSize.W))))} 
   val m_valid_q = RegNext(dr_valid_q)
-  val m_dense = spDen.io.spReadData.map(_.data)
+  val m_dense = spDen.map(_.io.spReadData.map(_.data))
   val m_sparse = spVal.io.spReadData.data
-  val m_multiply = m_dense.map(_*m_sparse)
-  val m_mac = m_multiply.zip(m_acc_q).map{case(x,y) => (Mux(dr_isNewOutput_q, x, x+y))}
+  val m_multiply = for(i <- 0 until cp.groupSize) yield {m_dense(i).map(_*m_sparse)}
+  val m_mac = for(i <- 0 until cp.groupSize) yield {m_multiply(i).zip(m_acc_q(i)).map{case(x,y) => (Mux(dr_isNewOutput_q, x, x+y))}}
   val m_outWrite = dr_outWrite_q || dr_outWriteEmptyRow_q
   val writeResult = m_outWrite && m_valid_q
   when(m_valid_q){
-    m_acc_q.zip(m_mac).map{case(x_q, x) => x_q := x}
+    for(i <- 0 until cp.groupSize) yield {m_acc_q(i).zip(m_mac(i)).map{case(x_q, x) => x_q := x}}
   }.otherwise{
-    m_acc_q.map{case(x_q) => x_q := x_q}
+    for(i <- 0 until cp.groupSize) yield {m_acc_q(i).map{case(x_q) => x_q := x_q}}
   }
 
   val rowAddress = (dr_rowNum_q - 1.U + rowOffset) << log2Ceil((cp.blockSize * cp.nColInDense)/8)
-  val formattedOutput = Mux(dr_outWriteEmptyRow_q, 0.U, m_mac.map(_(cp.blockSize-1, 0)).reverse.reduce(Cat(_,_)))
+  val formattedOutput = for(i <- 0 until cp.groupSize) yield {Mux(dr_outWriteEmptyRow_q, 0.U, m_mac(i).map(_(cp.blockSize-1, 0)).reverse.reduce(Cat(_,_)))}
 
   val writePartial1 = writeResult && dr_isPR_q && (dr_rowNum_q === 1.U)
   val writePartial2 = writeResult && dr_isPR_q && (dr_rowNum_q =/= 1.U)
 
-  io.partialRowWithPrev.data := RegEnable(formattedOutput, writePartial1)
-  io.partialRowWithPrev.address := RegEnable(rowAddress, writePartial1)
-  io.partialRowWithNext.data := RegEnable(formattedOutput, writePartial2)
+  for(i <- 0 until cp.groupSize){
+    io.partialRowWithPrev(i).data := RegEnable(formattedOutput(i), writePartial1)
+    io.partialRowWithPrev(i).address := RegEnable(rowAddress, writePartial1)
+    io.partialRowWithNext(i).data := RegEnable(formattedOutput(i), writePartial2)
+  }
 
   // Debugging
   dontTouch(io.partialRowWithNext)
@@ -382,15 +386,17 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   
 
   // Output buffer
-  val outBuff = Module(new Queue(new SPWriteCmd, cp.PEOutputBufferDepth))
-  io.outputQueueEmpty := ~outBuff.io.deq.valid
-  
-  outBuff.io.enq.bits.data := formattedOutput
-  outBuff.io.enq.bits.addr := rowAddress
-  outBuff.io.enq.valid := writeResult && !dr_isPR_q
-  assert(outBuff.io.enq.ready === true.B, "ERROR: Group #" + groupID.toString() + "output buffer full!")
+  val outBuff = for(i <- 0 until cp.groupSize) yield {Module(new Queue(new SPWriteCmd, cp.PEOutputBufferDepth))}
 
-  outBuff.io.deq <> io.outputBufferWriteData
+  io.outputQueueEmpty := ~(outBuff.map(_.io.deq.valid).reduce(_ || _))
+  
+  for(i <- 0 until cp.groupSize){
+    outBuff(i).io.enq.bits.data := formattedOutput(i)
+    outBuff(i).io.enq.bits.addr := rowAddress
+    outBuff(i).io.enq.valid := writeResult && !dr_isPR_q
+    assert(outBuff(i).io.enq.ready === true.B, "ERROR: Group #" + groupID.toString() + "output buffer full!")
+    outBuff(i).io.deq <> io.outputBufferWriteData(i)
+  }
 
   val pipeEmpty = (d1_state_q === sIdle) && (d1Queue.io.count === 0.U) && (!d2_valid) && (!dr_valid_q) && (!m_valid_q) && !(d1Queue.io.enq.valid)
   io.done := !pulse && pipeEmpty
