@@ -201,11 +201,12 @@ async def my_first_test(dut):
     prevCoreState = 0
 
     queueMonitor = QueueEntryMonitor(tb.nPEs)
+    allOutputQueuesIdle = False
 
     # for i in range(64000):
-    while dut.core.state != 4 or (not dut.core.compute.allOutputQueuesEmpty):
+    while dut.core.state != 4 or not allOutputQueuesIdle:
+        allOutputQueuesIdle = dut.core.compute.allOutputQueuesEmpty == 1
         await RisingEdge(dut.core_clock)
-
         queueMonitor.eval(dut)
         #print(str(eval('dut.core.compute.groupArray_0.clock')))
 
