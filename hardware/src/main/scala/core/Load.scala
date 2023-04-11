@@ -32,6 +32,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   val dec = Module(new LoadDecode)
   val loadTime = RegInit(0.U(regBits.W))
   
+
   // state machine
   val sIdle :: sStride :: sSeq :: sSeqCmd :: sSeqReadData :: sDelay :: Nil = Enum(6)
   val state = RegInit(sIdle)
@@ -56,6 +57,8 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   io.isFinalLoad := dec.io.isFinalLoad
 
   val scratchSel = Cat(dec.io.isPsum, dec.io.isCol, dec.io.isPtr, !dec.io.isSeq, dec.io.isVal) // col,ptr,den,val
+  /*
+  REMOVED:
 
   // control
   switch(state) {
@@ -127,7 +130,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
       }
     }
   }
-
+*/
 
   // instructions
   inst_q.io.enq <> io.inst
@@ -156,4 +159,5 @@ when(done){
 }
 
 io.ecnt := loadTime
+
 }

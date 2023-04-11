@@ -15,13 +15,27 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val regBits = p(AccKey).crParams.regBits
   val io = IO(new Bundle {
     val inst = Flipped(Decoupled(UInt(INST_BITS.W)))
+    /*
+    REMOVED:
+
     val spReadCmd = Output(new SPReadCmd())
     val spReadData = Input(new SPReadData(scratchType = "Out"))
+    */
     val me_wr = new MEWriteMaster
     val valid = Input(Bool())
     val done = Output(Bool())
     // val ecnt = Output(UInt(regBits.W))
   })
+
+  // REMOVE:
+  io.me_wr.cmd.bits.addr := 0.U
+  io.me_wr.cmd.bits.len := 0.U
+  io.me_wr.cmd.bits.tag := 0.U
+  io.me_wr.cmd.valid := false.B
+  io.me_wr.data.bits.data := 0.U
+  io.me_wr.data.bits.strb := 0.U
+  io.me_wr.data.valid := false.B
+
 
   // Module instantiation
   val inst_q = Module(new Queue(UInt(INST_BITS.W), cp.loadInstQueueEntries))
@@ -34,14 +48,19 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val start = inst_q.io.deq.fire
   val done = RegInit(false.B)
   io.done := done
+
   val inst = RegEnable(inst_q.io.deq.bits, start)
   val maxTransferPerReq = (1 << mp.lenBits).U
-  val waddr = Reg(chiselTypeOf(io.me_wr.cmd.bits.addr))
-  val wlen = Reg(chiselTypeOf(io.me_wr.cmd.bits.len))
   val transferMaxSizeBytes = (mp.lenBits + 1) << log2Ceil(mp.dataBits / 8)
   val saddr = Reg(UInt(M_SRAM_OFFSET_BITS.W))
   val isStride = (dec.io.ySize =/= 0.U)
+  /*
+  REMOVED:
+
+  val waddr = Reg(chiselTypeOf(io.me_wr.cmd.bits.addr))
+  val wlen = Reg(chiselTypeOf(io.me_wr.cmd.bits.len))
   val wcnt =  Reg(chiselTypeOf(io.me_wr.cmd.bits.len))
+  
   val nBlockPerTransfer = mp.dataBits / cp.blockSize
   val transferTotal = WireDefault((dec.io.xSize)-1.U >> log2Ceil(nBlockPerTransfer)) + 1.U
   val transferRem = Reg(chiselTypeOf(dec.io.xSize))
@@ -49,15 +68,19 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val totalBytesWritten = Reg(chiselTypeOf(totalBytes))
   val totalBytesRem = totalBytes - totalBytesWritten
   val currBytes = Mux(totalBytesRem >= (mp.dataBits/8).U, (mp.dataBits/8).U, totalBytesRem)
+  */
+
+  // instruction queue
+  dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)
+
+  /*
+  REMOVED:
 
   when(state === sIdle){
     totalBytesWritten := 0.U
   }.elsewhen((state === sWriteData) && (io.me_wr.data.ready)){
     totalBytesWritten := totalBytesWritten + currBytes
   }
-
-  // instruction queue
-  dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)
 
   switch(state){
     is(sIdle){
@@ -125,11 +148,16 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   }.elsewhen(io.me_wr.data.fire) {
     wcnt := wcnt + 1.U
   }
+  */
 
   // instructions
   inst_q.io.enq <> io.inst
   inst_q.io.deq.ready := (state === sIdle) && io.valid
  
+
+  /*
+  REMOVED:
+
   //sram read
   io.spReadCmd.addr := saddr
   
@@ -155,5 +183,5 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   // }
 
   // io.ecnt := storeTime
-
+  */
 }

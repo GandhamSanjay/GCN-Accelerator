@@ -32,15 +32,25 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   val regBits = p(AccKey).crParams.regBits
   val io = IO(new Bundle {
     val inst = Flipped(Decoupled(UInt(INST_BITS.W)))
+    
+    /*
+    REMOVED:
+
     val gbReadCmd = Output(new SPReadCmd)
     val gbReadData = Input(new SPReadData(scratchType = "Global"))
     val pSumRead = ValidIO(UInt(26.W))
     val pSumReadData = Input(new SPReadData(scratchType = "Out"))
     val spOutWrite = Decoupled(new SPWriteCmd)
+    */
+
     val valid = Input(Bool())
     val done = Output(Bool())
     val start = Input(Bool())
   })
+
+  // need to REMOVE:
+  io.done := true.B
+
   val bankBlockSizeBytes = cp.bankBlockSize/8
 
   // Module instantiation
@@ -71,6 +81,10 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
   
   val nNonZero = dec.io.colSize
   val nNonZeroPerGroup = dec.io.nNonZeroPerGroup
+  
+  /*
+  REMOVED:
+  
   val gbAddr = RegInit(0.U(C_SRAM_OFFSET_BITS.W))
   val gbRdata = io.gbReadData.data
 
@@ -500,4 +514,5 @@ io.done := (state === sIdle) && !io.start
       }
     }
   }
+  */
 }

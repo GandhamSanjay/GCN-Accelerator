@@ -22,13 +22,21 @@ class Core(implicit p: Parameters) extends Module {
   val cr = p(AccKey).crParams
   val fetch = Module(new Fetch)
   val load = Module(new Load)
+  /*
+  REMOVED:
   val globalBuffer = Module(new GlobalBuffer())
   val outputScratchpad = Module(new OutputScratchpad())
+  */
+  
   val compute = Module(new Compute)
   val store = Module(new Store)
   val start = Wire(Bool())
 
   load.io.spWrite.ready := true.B
+  
+  /*
+  REMOVED:
+
   globalBuffer.io.spWrite <> load.io.spWrite.bits
   globalBuffer.io.writeEn := load.io.spWrite.fire
   globalBuffer.io.spReadCmd <> compute.io.gbReadCmd
@@ -36,6 +44,9 @@ class Core(implicit p: Parameters) extends Module {
   compute.io.spOutWrite.bits <> outputScratchpad.io.spWrite
   compute.io.spOutWrite.ready := true.B
   outputScratchpad.io.writeEn := compute.io.spOutWrite.valid
+  */
+
+
   io.cr.ecnt(0) := 0.U
   // io.cr.ecnt(0) <> load.io.ecnt
   // io.cr.ecnt(1) <> compute.io.ecnt(0)
@@ -69,16 +80,37 @@ class Core(implicit p: Parameters) extends Module {
   store.io.inst <> fetch.io.inst.st
   //store.io.spReadCmd <> outputScratchpad.io.spReadCmd
   //store.io.spReadData <> outputScratchpad.io.spReadData
+  
+  /*
+  REMOVED:
+
   outputScratchpad.io.spReadCmd.addr := Mux(compute.io.pSumRead.valid, compute.io.pSumRead.bits, store.io.spReadCmd.addr)
   store.io.spReadData.data := outputScratchpad.io.spReadData.data
   compute.io.pSumReadData.data := outputScratchpad.io.spReadData.data
+  */
   
 
   // Read(rd) and write(wr) from/to memory (i.e. DRAM)
   io.cr.finish := (state === sFinish)
   io.me.rd(0) <> fetch.io.me_rd
   io.me.rd(1) <> load.io.me_rd
-  io.me.wr(0) <> store.io.me_wr
+  store.io.me_wr.ack := false.B
+  val cmd = store.io.me_wr.cmd.bits
+  val vld = store.io.me_wr.cmd.valid
+  store.io.me_wr.cmd.ready := true.B
+  val storeData = store.io.me_wr.data.bits
+  val storeDataValid = store.io.me_wr.data.valid
+  store.io.me_wr.data.ready := true.B
+
+  // Figure out address and write strobe details
+  io.me.wr(0).cmd.bits.addr := 0.U
+  io.me.wr(0).cmd.bits.len := 0.U
+  io.me.wr(0).cmd.bits.tag := 0.U
+  io.me.wr(0).cmd.valid := false.B
+  io.me.wr(0).data.bits.data := insCountCurr_q
+  io.me.wr(0).data.bits.strb := Fill(io.me.wr(0).data.bits.strb.getWidth, true.B)
+  io.me.wr(0).data.bits.strb := 1.U
+  io.me.wr(0).data.valid := true.B
 
 
   val computeStartReg = RegNext((state === sLoad) && load.io.done && load.io.isFinalLoad)
@@ -92,7 +124,7 @@ class Core(implicit p: Parameters) extends Module {
         }
     }
     is(sLoad){
-      when(load.io.done){
+      // REMOVED: when(load.io.done){
         insCountCurr_q := insCountCurr_q + 1.U
         when(insCountCurr_q === insCountTotal){
           state := sFinish
@@ -108,17 +140,17 @@ class Core(implicit p: Parameters) extends Module {
           state := sLoad
           ctr := ctr + 1.U
         }*/
-      }
+     // }
     }
     is(sCompute){
-      when(compute.io.done){
+      // REMOVED: when(compute.io.done){
         insCountCurr_q := insCountCurr_q + 1.U
         state := sStore
         ctr := 0.U
-      }
+      //}
     }
     is(sStore){
-      when(store.io.done){
+      // REMOVED: when(store.io.done){
         insCountCurr_q := insCountCurr_q + 1.U
         when(insCountCurr_q === insCountTotal){
           state := sFinish
@@ -126,7 +158,7 @@ class Core(implicit p: Parameters) extends Module {
           state := sLoad
           ctr := 1.U
         }
-      }
+      //}
     }
   }
   load.io.spWrite.ready := true.B

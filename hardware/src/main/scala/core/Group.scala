@@ -36,6 +36,7 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val cp = p(AccKey).coreParams
   val nBanks = cp.nColInDense
   val io = IO(new Bundle {
+    /*
     val nRowPtrInGroup = Flipped(ValidIO(UInt(32.W)))
     val rowOffset = Flipped(ValidIO(UInt(32.W)))
     val selectedRowOffset = Output(UInt(32.W))
@@ -53,8 +54,9 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     val partialRowWithNext = Output(new partialRowOutput)
     val outputQueueEmpty = Output(Bool())
     val outputsComplete = Input(Bool())
+    */
   })
-  
+  /*
   val startSignal = io.start && !RegNext(io.start)
   val startLatch = RegInit(false.B)
   when(startSignal && !io.outputsComplete){
@@ -394,4 +396,5 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
 
   val pipeEmpty = (d1_state_q === sIdle) && (d1Queue.io.count === 0.U) && (!d2_valid) && (!dr_valid_q) && (!m_valid_q) && !(d1Queue.io.enq.valid)
   io.done := !pulse && pipeEmpty
+  */
 }
