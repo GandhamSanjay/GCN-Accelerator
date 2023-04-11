@@ -27,7 +27,7 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
     // val ecnt = Output(UInt(regBits.W))
   })
 
-  // REMOVE:
+  // REMOVE THIS:
   io.me_wr.cmd.bits.addr := 0.U
   io.me_wr.cmd.bits.len := 0.U
   io.me_wr.cmd.bits.tag := 0.U
@@ -48,6 +48,11 @@ class Store(debug: Boolean = false)(implicit p: Parameters) extends Module with 
   val start = inst_q.io.deq.fire
   val done = RegInit(false.B)
   io.done := done
+
+  //REMOVE THIS:
+  when (inst_q.io.deq.fire){
+    done := true.B
+  }
 
   val inst = RegEnable(inst_q.io.deq.bits, start)
   val maxTransferPerReq = (1 << mp.lenBits).U

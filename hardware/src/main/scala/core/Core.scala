@@ -104,12 +104,20 @@ class Core(implicit p: Parameters) extends Module {
 
   // Figure out address and write strobe details
   io.me.wr(0).cmd.bits.addr := 0.U
-  io.me.wr(0).cmd.bits.len := 0.U
+  io.me.wr(0).cmd.bits.len := 32.U
   io.me.wr(0).cmd.bits.tag := 0.U
-  io.me.wr(0).cmd.valid := false.B
+
+  val count = RegInit(0.U(32.W))
+  count := count + 1.U
+
+  when (count(20) === 1.U){
+    io.me.wr(0).cmd.valid := true.B
+  }.otherwise{
+    io.me.wr(0).cmd.valid := false.B
+  }
+
   io.me.wr(0).data.bits.data := insCountCurr_q
   io.me.wr(0).data.bits.strb := Fill(io.me.wr(0).data.bits.strb.getWidth, true.B)
-  io.me.wr(0).data.bits.strb := 1.U
   io.me.wr(0).data.valid := true.B
 
 
@@ -124,7 +132,7 @@ class Core(implicit p: Parameters) extends Module {
         }
     }
     is(sLoad){
-      // REMOVED: when(load.io.done){
+      when(load.io.done){
         insCountCurr_q := insCountCurr_q + 1.U
         when(insCountCurr_q === insCountTotal){
           state := sFinish
@@ -140,7 +148,7 @@ class Core(implicit p: Parameters) extends Module {
           state := sLoad
           ctr := ctr + 1.U
         }*/
-     // }
+      }
     }
     is(sCompute){
       // REMOVED: when(compute.io.done){
@@ -150,7 +158,7 @@ class Core(implicit p: Parameters) extends Module {
       //}
     }
     is(sStore){
-      // REMOVED: when(store.io.done){
+      when(store.io.done){
         insCountCurr_q := insCountCurr_q + 1.U
         when(insCountCurr_q === insCountTotal){
           state := sFinish
@@ -158,7 +166,7 @@ class Core(implicit p: Parameters) extends Module {
           state := sLoad
           ctr := 1.U
         }
-      //}
+      }
     }
   }
   load.io.spWrite.ready := true.B

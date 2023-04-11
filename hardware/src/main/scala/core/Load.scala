@@ -56,6 +56,11 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)
   io.isFinalLoad := dec.io.isFinalLoad
 
+  // REMOVE THIS:
+  when(start){
+    done := true.B
+  }
+
   val scratchSel = Cat(dec.io.isPsum, dec.io.isCol, dec.io.isPtr, !dec.io.isSeq, dec.io.isVal) // col,ptr,den,val
   /*
   REMOVED:

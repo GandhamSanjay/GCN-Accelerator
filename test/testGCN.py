@@ -177,170 +177,171 @@ async def my_first_test(dut):
 
     addressOutputCounter = [0]*tb.nSparseRows
 
-    computeStateTimeCumulative = [0]*10
-    computeStateTimeTile = [0]*10
-    computeStateLookup = ['Idle','Row Pointer','Col','Val','Dense','Partial Sum','Compute','Combine Group','Combine','Done']
-    computeTimeFile = open('compute_cycle_data.csv','w')
-    computeTimeFile.write('Tile #')
-    for state in computeStateLookup:
-        computeTimeFile.write(',')
-        computeTimeFile.write(state)
-    computeTimeFile.write('\n')
+    # computeStateTimeCumulative = [0]*10
+    # computeStateTimeTile = [0]*10
+    # computeStateLookup = ['Idle','Row Pointer','Col','Val','Dense','Partial Sum','Compute','Combine Group','Combine','Done']
+    # computeTimeFile = open('compute_cycle_data.csv','w')
+    # computeTimeFile.write('Tile #')
+    # for state in computeStateLookup:
+    #     computeTimeFile.write(',')
+    #     computeTimeFile.write(state)
+    # computeTimeFile.write('\n')
 
-    coreStateTimeCumulative = [0]*10
-    coreStateTimeTile = [0]*10
-    coreStateLookup = ['Idle','Load','Compute','Store','Finish']
-    coreTimeFile = open('core_cycle_data.csv', 'w')
-    coreTimeFile.write('Tile #')
-    coreLoadTime = 0
-    for state in coreStateLookup:
-        coreTimeFile.write(',')
-        coreTimeFile.write(state)
-    coreTimeFile.write('\n')
+    # coreStateTimeCumulative = [0]*10
+    # coreStateTimeTile = [0]*10
+    # coreStateLookup = ['Idle','Load','Compute','Store','Finish']
+    # coreTimeFile = open('core_cycle_data.csv', 'w')
+    # coreTimeFile.write('Tile #')
+    # coreLoadTime = 0
+    # for state in coreStateLookup:
+    #     coreTimeFile.write(',')
+    #     coreTimeFile.write(state)
+    # coreTimeFile.write('\n')
 
     prevCoreState = 0
 
     queueMonitor = QueueEntryMonitor(tb.nPEs)
     allOutputQueuesIdle = False
 
-    # for i in range(64000):
-    while dut.core.state != 4 or not allOutputQueuesIdle:
-        allOutputQueuesIdle = dut.core.compute.allOutputQueuesEmpty == 1
+    for i in range(480000):
         await RisingEdge(dut.core_clock)
-        queueMonitor.eval(dut)
-        #print(str(eval('dut.core.compute.groupArray_0.clock')))
+#     while dut.core.state != 4 or not allOutputQueuesIdle:
+#         allOutputQueuesIdle = dut.core.compute.allOutputQueuesEmpty == 1
+#         await RisingEdge(dut.core_clock)
+#         queueMonitor.eval(dut)
+#         #print(str(eval('dut.core.compute.groupArray_0.clock')))
 
-        if (int(dut.core.state) == 1 and prevCoreState != 1 and outputNumber != 0):
-            # Output tile compute state cycles
-            computeTimeFile.write(str(outputNumber))
-            for i in range(len(computeStateLookup)):
-                computeTimeFile.write(',')
-                computeTimeFile.write(str(computeStateTimeTile[i]))
-            computeTimeFile.write('\n')
-            computeTimeFile.close()
-            computeTimeFile = open('compute_cycle_data.csv','a')
+#         if (int(dut.core.state) == 1 and prevCoreState != 1 and outputNumber != 0):
+#             # Output tile compute state cycles
+#             computeTimeFile.write(str(outputNumber))
+#             for i in range(len(computeStateLookup)):
+#                 computeTimeFile.write(',')
+#                 computeTimeFile.write(str(computeStateTimeTile[i]))
+#             computeTimeFile.write('\n')
+#             computeTimeFile.close()
+#             computeTimeFile = open('compute_cycle_data.csv','a')
 
-            # Output tile core state cycles
-            coreTimeFile.write(str(outputNumber))
-            for i in range(len(coreStateLookup)):
-                coreTimeFile.write(',')
-                coreTimeFile.write(str(coreStateTimeTile[i]))
-            coreTimeFile.write('\n')
-            coreTimeFile.close()
-            coreTimeFile = open('core_cycle_data.csv', 'a')
-            # Reset compute tile state cycles
-            computeStateTimeTile = [0]*10
-            # Reset core tile state cycles
-            coreStateTimeTile = [0]*10
+#             # Output tile core state cycles
+#             coreTimeFile.write(str(outputNumber))
+#             for i in range(len(coreStateLookup)):
+#                 coreTimeFile.write(',')
+#                 coreTimeFile.write(str(coreStateTimeTile[i]))
+#             coreTimeFile.write('\n')
+#             coreTimeFile.close()
+#             coreTimeFile = open('core_cycle_data.csv', 'a')
+#             # Reset compute tile state cycles
+#             computeStateTimeTile = [0]*10
+#             # Reset core tile state cycles
+#             coreStateTimeTile = [0]*10
 
-        prevCoreState = int(dut.core.state)
+#         prevCoreState = int(dut.core.state)
     
 
-        # Update the tile number and address offset
-        if (dut.core.compute.groupArray_0.pulse == True and dut.core.state == 2):
+#         # Update the tile number and address offset
+#         if (dut.core.compute.groupArray_0.pulse == True and dut.core.state == 2):
             
-            tb.load_result_matrix(outputNumber)
-            print("Output matrix #" + str(outputNumber) + ' loaded')
+#             tb.load_result_matrix(outputNumber)
+#             print("Output matrix #" + str(outputNumber) + ' loaded')
 
-            if (outputNumber > 0):
-                # Print missing outputs from this tile, if any exist
-                if (numWritten != tb.nSparseRows*outputNumber):
-                    print("Tile #" + str(outputNumber) + " failed to output the following rows:\n")
-                    for i in range(len(addressOutputCounter)):
-                        if (addressOutputCounter[i] != outputNumber):
-                            print(str(i*32))
-
-
-            outputNumber = outputNumber + 1
+#             if (outputNumber > 0):
+#                 # Print missing outputs from this tile, if any exist
+#                 if (numWritten != tb.nSparseRows*outputNumber):
+#                     print("Tile #" + str(outputNumber) + " failed to output the following rows:\n")
+#                     for i in range(len(addressOutputCounter)):
+#                         if (addressOutputCounter[i] != outputNumber):
+#                             print(str(i*32))
 
 
-        # Monitor Output Scratchpad
-        if (dut.core.outputScratchpad_io_writeEn.value):
-            addressOutputCounter[int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)] = addressOutputCounter[int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)] + 1
-            numWritten = numWritten + 1
-            # tb.memory.seek(dut.core.outputScratchpad_io_spWrite_addr.value + tb.outputPtr)
-            # numpyVals = tb.memory.read(tb.nDenseCols * 4)
-            # bitStr = ''
-            # for num in numpyVals:
-            #     bitStr =  bitStr + format(num, '08b')
-            #     #print(format(num, '08b'))
-            # if bitStr != str(dut.core.outputScratchpad_io_spWrite_data.value):
-            #     print("Address: " + str(int(dut.core.outputScratchpad_io_spWrite_addr.value)))
-            #     print("NumPy:\t" + str(bitStr) + "\nDut:\t"+str(dut.core.outputScratchpad_io_spWrite_data.value))
-            #     errorCount = errorCount + 1
-            #     # if (int(dut.core.outputScratchpad_io_spWrite_addr.value) < lowestAddress):
-            #         # lowestAddress = int(dut.core.outputScratchpad_io_spWrite_addr.value)
-            # assert(bitStr == str(dut.core.outputScratchpad_io_spWrite_data.value))
-            row = int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)
-            bitStr = ''
-            for val in tb.out[row]:
-                bitStr = np.binary_repr(int(val), 32) + bitStr
-                # print(val)
-            if bitStr != str(dut.core.outputScratchpad_io_spWrite_data.value):
-                print("Address: " + str(int(dut.core.outputScratchpad_io_spWrite_addr.value)))
-                print("NumPy:\t" + str(bitStr) + "\nDut:\t"+str(dut.core.outputScratchpad_io_spWrite_data.value))
-                errorCount = errorCount + 1
-                # if (int(dut.core.outputScratchpad_io_spWrite_addr.value) < lowestAddress):
-                    # lowestAddress = int(dut.core.outputScratchpad_io_spWrite_addr.value)
-                # print(queueMonitor.state())
-            assert(bitStr == str(dut.core.outputScratchpad_io_spWrite_data.value))
+#             outputNumber = outputNumber + 1
 
 
-        # Monitor Compute State
-        computeStateTimeTile[int(dut.core.compute.state)] = computeStateTimeTile[int(dut.core.compute.state)] + 1
-        computeStateTimeCumulative[int(dut.core.compute.state)] = computeStateTimeCumulative[int(dut.core.compute.state)] + 1
+#         # Monitor Output Scratchpad
+#         if (dut.core.outputScratchpad_io_writeEn.value):
+#             addressOutputCounter[int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)] = addressOutputCounter[int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)] + 1
+#             numWritten = numWritten + 1
+#             # tb.memory.seek(dut.core.outputScratchpad_io_spWrite_addr.value + tb.outputPtr)
+#             # numpyVals = tb.memory.read(tb.nDenseCols * 4)
+#             # bitStr = ''
+#             # for num in numpyVals:
+#             #     bitStr =  bitStr + format(num, '08b')
+#             #     #print(format(num, '08b'))
+#             # if bitStr != str(dut.core.outputScratchpad_io_spWrite_data.value):
+#             #     print("Address: " + str(int(dut.core.outputScratchpad_io_spWrite_addr.value)))
+#             #     print("NumPy:\t" + str(bitStr) + "\nDut:\t"+str(dut.core.outputScratchpad_io_spWrite_data.value))
+#             #     errorCount = errorCount + 1
+#             #     # if (int(dut.core.outputScratchpad_io_spWrite_addr.value) < lowestAddress):
+#             #         # lowestAddress = int(dut.core.outputScratchpad_io_spWrite_addr.value)
+#             # assert(bitStr == str(dut.core.outputScratchpad_io_spWrite_data.value))
+#             row = int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)
+#             bitStr = ''
+#             for val in tb.out[row]:
+#                 bitStr = np.binary_repr(int(val), 32) + bitStr
+#                 # print(val)
+#             if bitStr != str(dut.core.outputScratchpad_io_spWrite_data.value):
+#                 print("Address: " + str(int(dut.core.outputScratchpad_io_spWrite_addr.value)))
+#                 print("NumPy:\t" + str(bitStr) + "\nDut:\t"+str(dut.core.outputScratchpad_io_spWrite_data.value))
+#                 errorCount = errorCount + 1
+#                 # if (int(dut.core.outputScratchpad_io_spWrite_addr.value) < lowestAddress):
+#                     # lowestAddress = int(dut.core.outputScratchpad_io_spWrite_addr.value)
+#                 # print(queueMonitor.state())
+#             assert(bitStr == str(dut.core.outputScratchpad_io_spWrite_data.value))
 
-        # Monitor Core State
-        coreStateTimeTile[int(dut.core.state)] = coreStateTimeTile[int(dut.core.state)] + 1
-        coreStateTimeCumulative[int(dut.core.state)] = coreStateTimeCumulative[int(dut.core.state)] + 1
 
-    #print("There were " + str(errorCount) + " invalid outputs\n")
+#         # Monitor Compute State
+#         computeStateTimeTile[int(dut.core.compute.state)] = computeStateTimeTile[int(dut.core.compute.state)] + 1
+#         computeStateTimeCumulative[int(dut.core.compute.state)] = computeStateTimeCumulative[int(dut.core.compute.state)] + 1
 
-    # Output final tile compute state cycles
-    computeTimeFile.write(str(outputNumber))
-    for i in range(len(computeStateLookup)):
-        computeTimeFile.write(',')
-        computeTimeFile.write(str(computeStateTimeTile[i]))
-    computeTimeFile.write('\n')
+#         # Monitor Core State
+#         coreStateTimeTile[int(dut.core.state)] = coreStateTimeTile[int(dut.core.state)] + 1
+#         coreStateTimeCumulative[int(dut.core.state)] = coreStateTimeCumulative[int(dut.core.state)] + 1
 
-    # Output cumulative compute state cycles
-    computeTimeFile.write('Total')
-    for i in range(len(computeStateLookup)):
-        computeTimeFile.write(',')
-        computeTimeFile.write(str(computeStateTimeCumulative[i]))
-    computeTimeFile.write('\n')
-    computeTimeFile.close()
+#     #print("There were " + str(errorCount) + " invalid outputs\n")
 
-    # Output final tile core state cycles
-    coreTimeFile.write(str(outputNumber))
-    for i in range(len(coreStateLookup)):
-        coreTimeFile.write(',')
-        if i != 1:
-            coreTimeFile.write(str(coreStateTimeTile[i]))
-        else:
-            coreTimeFile.write(str(coreLoadTime))
-    coreTimeFile.write('\n')
+#     # Output final tile compute state cycles
+#     computeTimeFile.write(str(outputNumber))
+#     for i in range(len(computeStateLookup)):
+#         computeTimeFile.write(',')
+#         computeTimeFile.write(str(computeStateTimeTile[i]))
+#     computeTimeFile.write('\n')
 
-    # Output cumulative core state cycles
-    coreTimeFile.write('Total')
-    for i in range(len(coreStateLookup)):
-        coreTimeFile.write(',')
-        coreTimeFile.write(str(coreStateTimeCumulative[i]))
-    coreTimeFile.write('\n')
-    coreTimeFile.close()
+#     # Output cumulative compute state cycles
+#     computeTimeFile.write('Total')
+#     for i in range(len(computeStateLookup)):
+#         computeTimeFile.write(',')
+#         computeTimeFile.write(str(computeStateTimeCumulative[i]))
+#     computeTimeFile.write('\n')
+#     computeTimeFile.close()
 
-    print(queueMonitor.report())
-# 
-    # print("First address to error was: " + str(lowestAddress))
-    if (numWritten != tb.nSparseRows*outputNumber):
-        print(str(numWritten) + " rows were written. The output should have had " + str(tb.nSparseRows*outputNumber) + " rows\n")
-        print("Tile #" + str(outputNumber) + " failed to output the following rows:")
-        for i in range(len(addressOutputCounter)):
-            if (addressOutputCounter[i] != outputNumber):
-                print(str(i*32))
-        print('\n')
+#     # Output final tile core state cycles
+#     coreTimeFile.write(str(outputNumber))
+#     for i in range(len(coreStateLookup)):
+#         coreTimeFile.write(',')
+#         if i != 1:
+#             coreTimeFile.write(str(coreStateTimeTile[i]))
+#         else:
+#             coreTimeFile.write(str(coreLoadTime))
+#     coreTimeFile.write('\n')
 
-    assert(numWritten == tb.nSparseRows*outputNumber)
+#     # Output cumulative core state cycles
+#     coreTimeFile.write('Total')
+#     for i in range(len(coreStateLookup)):
+#         coreTimeFile.write(',')
+#         coreTimeFile.write(str(coreStateTimeCumulative[i]))
+#     coreTimeFile.write('\n')
+#     coreTimeFile.close()
+
+#     print(queueMonitor.report())
+# # 
+#     # print("First address to error was: " + str(lowestAddress))
+#     if (numWritten != tb.nSparseRows*outputNumber):
+#         print(str(numWritten) + " rows were written. The output should have had " + str(tb.nSparseRows*outputNumber) + " rows\n")
+#         print("Tile #" + str(outputNumber) + " failed to output the following rows:")
+#         for i in range(len(addressOutputCounter)):
+#             if (addressOutputCounter[i] != outputNumber):
+#                 print(str(i*32))
+#         print('\n')
+
+#     assert(numWritten == tb.nSparseRows*outputNumber)
 
 
     #await Timer(10, units='us')
