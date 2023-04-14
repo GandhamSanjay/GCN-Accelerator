@@ -49,6 +49,7 @@ object ISA {
   val C_XSIZE_BITS = 26
   val C_YSIZE_BITS = 26
   val C_PR_BITS = 2
+  val DEN_GROUP_SEL_BITS = 10
   val Y = true.B
   val N = false.B
   val OP_L = 0.asUInt(OP_BITS.W)
