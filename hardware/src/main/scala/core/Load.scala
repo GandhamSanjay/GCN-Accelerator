@@ -20,6 +20,8 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
     val inst = Flipped(Decoupled(UInt(INST_BITS.W)))
     val me_rd = new MEReadMaster
     val valid = Input(Bool())
+    val isDenseLoad = Output(Bool())
+    val denseGroup = Output(UInt(ISA.DEN_GROUP_SEL_BITS.W))
     val done = Output(Bool())
     val isFinalLoad = Output(Bool())
     val spWrite = Decoupled(new SPWriteCmd(scratchType = "Global"))
@@ -50,6 +52,10 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   val saddr = Reg(UInt(M_SRAM_OFFSET_BITS.W))
   val mask = UInt((mp.dataBits/cp.blockSize).W)
   val delayCtr = RegInit(0.U(5.W))
+
+  // dense loading
+  io.denseGroup := dec.io.denseGroup
+  io.isDenseLoad := ~dec.io.isSeq
 
   // instruction queue
   dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)

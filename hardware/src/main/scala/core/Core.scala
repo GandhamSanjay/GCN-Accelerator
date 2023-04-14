@@ -23,19 +23,23 @@ class Core(implicit p: Parameters) extends Module {
   val fetch = Module(new Fetch)
   val load = Module(new Load)
   val globalBuffer = Module(new GlobalBuffer())
-  val outputScratchpad = Module(new OutputScratchpad())
+  val outputScratchpad = for(i <- 0 until cp.groupSize) yield{Module(new OutputScratchpad())}
   val compute = Module(new Compute)
   val store = Module(new Store)
   val start = Wire(Bool())
 
   load.io.spWrite.ready := true.B
   globalBuffer.io.spWrite <> load.io.spWrite.bits
-  globalBuffer.io.writeEn := load.io.spWrite.fire
+  globalBuffer.io.writeEn := load.io.spWrite.fire && ~load.io.isDenseLoad
   globalBuffer.io.spReadCmd <> compute.io.gbReadCmd
   globalBuffer.io.spReadData <> compute.io.gbReadData
-  compute.io.spOutWrite.bits <> outputScratchpad.io.spWrite
-  compute.io.spOutWrite.ready := true.B
-  outputScratchpad.io.writeEn := compute.io.spOutWrite.valid
+  compute.io.spOutWrite.zip(outputScratchpad).map{case(x,y) => x.bits <> y.io.spWrite}
+  compute.io.spOutWrite.map{_.ready := true.B}
+  compute.io.spOutWrite.zip(outputScratchpad).map{case(x,y) => y.io.writeEn := x.valid}
+  compute.io.denWrite := load.io.spWrite.bits
+  compute.io.denWriteEn := load.io.spWrite.fire && load.io.isDenseLoad
+  compute.io.denseGroup := load.io.denseGroup
+
   io.cr.ecnt(0) := 0.U
   // io.cr.ecnt(0) <> load.io.ecnt
   // io.cr.ecnt(1) <> compute.io.ecnt(0)
@@ -69,9 +73,11 @@ class Core(implicit p: Parameters) extends Module {
   store.io.inst <> fetch.io.inst.st
   //store.io.spReadCmd <> outputScratchpad.io.spReadCmd
   //store.io.spReadData <> outputScratchpad.io.spReadData
-  outputScratchpad.io.spReadCmd.addr := Mux(compute.io.pSumRead.valid, compute.io.pSumRead.bits, store.io.spReadCmd.addr)
-  store.io.spReadData.data := outputScratchpad.io.spReadData.data
-  compute.io.pSumReadData.data := outputScratchpad.io.spReadData.data
+  outputScratchpad.map{_.io.spReadCmd.addr := Mux(compute.io.pSumRead.valid, compute.io.pSumRead.bits, store.io.spReadCmd.addr)}
+
+  // TODO: FIX THIS
+  store.io.spReadData.data := outputScratchpad(0).io.spReadData.data
+  compute.io.pSumReadData.data := outputScratchpad(0).io.spReadData.data
   
 
   // Read(rd) and write(wr) from/to memory (i.e. DRAM)
@@ -92,11 +98,11 @@ class Core(implicit p: Parameters) extends Module {
         }
     }
     is(sLoad){
-      when(load.io.done){
+      when(insCountCurr_q === insCountTotal){
+        state := sFinish
+      }.elsewhen(load.io.done){
         insCountCurr_q := insCountCurr_q + 1.U
-        when(insCountCurr_q === insCountTotal){
-          state := sFinish
-        }.elsewhen(load.io.isFinalLoad){
+        when(load.io.isFinalLoad){
           state := sCompute
         }.otherwise{
           state := sLoad
