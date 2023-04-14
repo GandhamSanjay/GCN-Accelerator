@@ -30,6 +30,7 @@ class TB(object):
         self.nMultiplications = 0
         self.instCount = 12
         self.out = np.zeros((1,1))
+        self.out1 = np.zeros((1,1))
         self.load_meta_data()
         # self.load_result_matrix()
 
@@ -76,6 +77,10 @@ class TB(object):
     def load_result_matrix(self, outputNumber):
         infile = open('output_matrix_' + str(outputNumber) + '.txt','r')
         self.out = np.loadtxt(infile)
+        infile.close()
+
+        infile = open('output_matrix_' + str(outputNumber+1) + '.txt','r')
+        self.out1 = np.loadtxt(infile)
         infile.close()
         # addr = self.outputPtr
         # self.memory.seek(addr)
@@ -200,14 +205,14 @@ async def my_first_test(dut):
 
     prevCoreState = 0
 
-    queueMonitor = QueueEntryMonitor(tb.nPEs)
+    ##queueMonitor = QueueEntryMonitor(tb.nPEs)
     allOutputQueuesIdle = False
 
     # for i in range(64000):
     while dut.core.state != 4 or not allOutputQueuesIdle:
         allOutputQueuesIdle = dut.core.compute.allOutputQueuesEmpty == 1
         await RisingEdge(dut.core_clock)
-        queueMonitor.eval(dut)
+        ##queueMonitor.eval(dut)
         #print(str(eval('dut.core.compute.groupArray_0.clock')))
 
         if (int(dut.core.state) == 1 and prevCoreState != 1 and outputNumber != 0):
@@ -236,7 +241,7 @@ async def my_first_test(dut):
         prevCoreState = int(dut.core.state)
     
 
-        # Update the tile number and address offset
+        # Update the output matrix
         if (dut.core.compute.groupArray_0.pulse == True and dut.core.state == 2):
             
             tb.load_result_matrix(outputNumber)
@@ -254,37 +259,33 @@ async def my_first_test(dut):
             outputNumber = outputNumber + 1
 
 
-        # Monitor Output Scratchpad
-        if (dut.core.outputScratchpad_io_writeEn.value):
-            addressOutputCounter[int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)] = addressOutputCounter[int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)] + 1
+        # Monitor Output Scratchpad 0
+        if (dut.core.outputScratchpad_0_io_writeEn.value):
+            addressOutputCounter[int(int(dut.core.outputScratchpad_0_io_spWrite_addr.value)/32)] = addressOutputCounter[int(int(dut.core.outputScratchpad_0_io_spWrite_addr.value)/32)] + 1
             numWritten = numWritten + 1
-            # tb.memory.seek(dut.core.outputScratchpad_io_spWrite_addr.value + tb.outputPtr)
-            # numpyVals = tb.memory.read(tb.nDenseCols * 4)
-            # bitStr = ''
-            # for num in numpyVals:
-            #     bitStr =  bitStr + format(num, '08b')
-            #     #print(format(num, '08b'))
-            # if bitStr != str(dut.core.outputScratchpad_io_spWrite_data.value):
-            #     print("Address: " + str(int(dut.core.outputScratchpad_io_spWrite_addr.value)))
-            #     print("NumPy:\t" + str(bitStr) + "\nDut:\t"+str(dut.core.outputScratchpad_io_spWrite_data.value))
-            #     errorCount = errorCount + 1
-            #     # if (int(dut.core.outputScratchpad_io_spWrite_addr.value) < lowestAddress):
-            #         # lowestAddress = int(dut.core.outputScratchpad_io_spWrite_addr.value)
-            # assert(bitStr == str(dut.core.outputScratchpad_io_spWrite_data.value))
-            row = int(int(dut.core.outputScratchpad_io_spWrite_addr.value)/32)
+            row = int(int(dut.core.outputScratchpad_0_io_spWrite_addr.value)/32)
             bitStr = ''
             for val in tb.out[row]:
                 bitStr = np.binary_repr(int(val), 32) + bitStr
-                # print(val)
-            if bitStr != str(dut.core.outputScratchpad_io_spWrite_data.value):
-                print("Address: " + str(int(dut.core.outputScratchpad_io_spWrite_addr.value)))
-                print("NumPy:\t" + str(bitStr) + "\nDut:\t"+str(dut.core.outputScratchpad_io_spWrite_data.value))
+            if bitStr != str(dut.core.outputScratchpad_0_io_spWrite_data.value):
+                print("Address: " + str(int(dut.core.outputScratchpad_0_io_spWrite_addr.value)))
+                print("NumPy:\t" + str(bitStr) + "\nDut:\t"+str(dut.core.outputScratchpad_0_io_spWrite_data.value))
                 errorCount = errorCount + 1
-                # if (int(dut.core.outputScratchpad_io_spWrite_addr.value) < lowestAddress):
-                    # lowestAddress = int(dut.core.outputScratchpad_io_spWrite_addr.value)
-                # print(queueMonitor.state())
-            assert(bitStr == str(dut.core.outputScratchpad_io_spWrite_data.value))
+            assert(bitStr == str(dut.core.outputScratchpad_0_io_spWrite_data.value))
 
+        # Monitor Output Scratchpad 1
+        if (dut.core.outputScratchpad_1_io_writeEn.value):
+            addressOutputCounter[int(int(dut.core.outputScratchpad_1_io_spWrite_addr.value)/32)] = addressOutputCounter[int(int(dut.core.outputScratchpad_1_io_spWrite_addr.value)/32)] + 1
+            # numWritten = numWritten + 1
+            row = int(int(dut.core.outputScratchpad_1_io_spWrite_addr.value)/32)
+            bitStr = ''
+            for val in tb.out1[row]:
+                bitStr = np.binary_repr(int(val), 32) + bitStr
+            if bitStr != str(dut.core.outputScratchpad_1_io_spWrite_data.value):
+                print("Address: " + str(int(dut.core.outputScratchpad_1_io_spWrite_addr.value)))
+                print("NumPy:\t" + str(bitStr) + "\nDut:\t"+str(dut.core.outputScratchpad_1_io_spWrite_data.value))
+                errorCount = errorCount + 1
+            assert(bitStr == str(dut.core.outputScratchpad_1_io_spWrite_data.value))
 
         # Monitor Compute State
         computeStateTimeTile[int(dut.core.compute.state)] = computeStateTimeTile[int(dut.core.compute.state)] + 1
@@ -329,7 +330,7 @@ async def my_first_test(dut):
     coreTimeFile.write('\n')
     coreTimeFile.close()
 
-    print(queueMonitor.report())
+    #print(queueMonitor.report())
 # 
     # print("First address to error was: " + str(lowestAddress))
     if (numWritten != tb.nSparseRows*outputNumber):
