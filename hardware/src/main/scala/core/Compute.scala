@@ -36,7 +36,10 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val gbReadData = Input(new SPReadData(scratchType = "Global"))
     val pSumRead = ValidIO(UInt(26.W))
     val pSumReadData = Input(new SPReadData(scratchType = "Out"))
-    val spOutWrite = Decoupled(new SPWriteCmd)
+    val spOutWrite = Vec(cp.groupSize, Decoupled(new SPWriteCmd))
+    val denWrite = Input(new SPWriteCmd(scratchType = "Global"))
+    val denWriteEn = Input(Bool())
+    val denseGroup = Input(UInt(ISA.DEN_GROUP_SEL_BITS.W))
     val valid = Input(Bool())
     val done = Output(Bool())
     val start = Input(Bool())
@@ -239,71 +242,80 @@ dontTouch(prWithNext)
 
 //for (i <- 0 until cp.nGroups){groupArray(i).io.prEntry.ready := false.B}
 
-val aggBuffer = Reg(chiselTypeOf(groupArray(0).io.partialRowWithPrev.data))
-val aggAddressBuffer = Reg(chiselTypeOf(groupArray(0).io.partialRowWithPrev.address))
+val aggBuffer = for(i <- 0 until cp.groupSize) yield {Reg(chiselTypeOf(groupArray(0).io.partialRowWithPrev(0).data))}
+val aggAddressBuffer = for(i <- 0 until cp.groupSize) yield {Reg(chiselTypeOf(groupArray(0).io.partialRowWithPrev(0).address))}
 
-val aggBufferSeq = for(i <- 0 until cp.nPE)yield{aggBuffer(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
-val prWithPrevSeq = for(i <- 0 until cp.nPE)yield{prWithPrev.data(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
+val aggBufferSeq = for(j <- 0 until cp.groupSize) yield {for(i <- 0 until cp.nPE)yield{aggBuffer(j)(((i+1)*cp.blockSize)-1, i*cp.blockSize)}}
+val prWithPrevSeq = for(j <- 0 until cp.groupSize) yield {for(i <- 0 until cp.nPE)yield{prWithPrev(j).data(((i+1)*cp.blockSize)-1, i*cp.blockSize)}}
 
-val aggBufferPlusPRWithPrev = aggBufferSeq.zip(prWithPrevSeq).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}
+val aggBufferPlusPRWithPrev = for(i <- 0 until cp.groupSize) yield {aggBufferSeq(i).zip(prWithPrevSeq(i)).map{case(d,dP) => d+dP}.reverse.reduce{Cat(_,_)}}
 val aggDone = Wire(Bool())
 
-val aggQueue = Module(new Queue(new SPWriteCmd, cp.aggregationBufferDepth))
+val aggQueue = for(i <- 0 until cp.groupSize) yield {Module(new Queue(new SPWriteCmd, cp.aggregationBufferDepth))}
 
-assert(aggQueue.io.enq.ready === true.B, "ERROR: Aggregation queue full!")
+for (i <- 0 until cp.groupSize){
+  assert(aggQueue(i).io.enq.ready === true.B, "ERROR: Aggregation queue full!")
+}
 
 
-aggQueue.io.enq.bits.data := aggBufferPlusPRWithPrev
-aggQueue.io.enq.bits.addr := prWithPrev.address
+for (i <- 0 until cp.groupSize){
+  aggQueue(i).io.enq.bits.data := aggBufferPlusPRWithPrev(i)
+  aggQueue(i).io.enq.bits.addr := prWithPrev(i).address
+}
 
 
 // Two stage output arbiters - aggregation gets priority
-val groupArbiter = Module(new MyRRArbiter(new SPWriteCmd, cp.nGroups))
-val outputArbiter = Module(new Arbiter(new SPWriteCmd, 2))
+val groupArbiter = for(i <- 0 until cp.groupSize) yield {Module(new MyRRArbiter(new SPWriteCmd, cp.nGroups))}
+val outputArbiter = for(i <- 0 until cp.groupSize) yield {Module(new Arbiter(new SPWriteCmd, 2))}
 
-outputArbiter.io.in(0) <> aggQueue.io.deq
+outputArbiter.zip(aggQueue).map{case(x,y) => x.io.in(0) <> y.io.deq}
 
 // Extra register stage between group arbiter and output arbiter
-val groupOutputReg = RegEnable(groupArbiter.io.out.bits, outputArbiter.io.in(1).ready)
-val groupOutputReg_valid = RegEnable(groupArbiter.io.out.valid, outputArbiter.io.in(1).ready)
-outputArbiter.io.in(1).bits := groupOutputReg
-outputArbiter.io.in(1).valid := groupOutputReg_valid
-groupArbiter.io.out.ready := outputArbiter.io.in(1).ready
-val delayedOutputArbiterData = RegNext(outputArbiter.io.out.bits.data)
+val groupOutputReg = for(i <- 0 until cp.groupSize) yield {RegEnable(groupArbiter(i).io.out.bits, outputArbiter(i).io.in(1).ready)}
+val groupOutputReg_valid = for(i <- 0 until cp.groupSize) yield {RegEnable(groupArbiter(i).io.out.valid, outputArbiter(i).io.in(1).ready)}
+for(i <- 0 until cp.groupSize) yield {outputArbiter(i).io.in(1).bits := groupOutputReg(i)}
+for(i <- 0 until cp.groupSize) yield {outputArbiter(i).io.in(1).valid := groupOutputReg_valid(i)}
+for(i <- 0 until cp.groupSize) yield {groupArbiter(i).io.out.ready := outputArbiter(i).io.in(1).ready}
+val delayedOutputArbiterData = for(i <- 0 until cp.groupSize) yield {RegNext(outputArbiter(i).io.out.bits.data)}
 
 
 // Partial sum buffer
-val spPSum = Module(new BankedScratchpad(scratchType = "Den"))
-spPSum.io.spWrite.data := Mux(dec.io.pSumInOutputSp, Mux(RegNext(pSumReadAddr(5)),io.pSumReadData.data(511,256),io.pSumReadData.data(255,0)), io.gbReadData.data)
-spPSum.io.spWrite.addr := pSumWriteAddr
-spPSum.io.writeEn := state === sDataMoveSum
+val spPSum = for(i <- 0 until cp.groupSize) yield {Module(new BankedScratchpad(scratchType = "Den"))}
+
+for(i <- 0 until cp.groupSize){
+  spPSum(i).io.spWrite.data := Mux(dec.io.pSumInOutputSp, Mux(RegNext(pSumReadAddr(5)),io.pSumReadData.data(511,256),io.pSumReadData.data(255,0)), io.gbReadData.data)
+  spPSum(i).io.spWrite.addr := pSumWriteAddr
+  spPSum(i).io.writeEn := state === sDataMoveSum
+}
 
 // Read partial sum row
 val denCol  = RegInit(VecInit(Seq.tabulate(cp.nPE)(n => n.U(M_SRAM_OFFSET_BITS.W)))) 
-for (i <- 0 until cp.nPE){
-    spPSum.io.spReadCmd(i).addr := outputArbiter.io.out.bits.addr + (denCol(i) << log2Ceil(cp.blockSize/8))
+for(i <- 0 until cp.groupSize){
+  for(j <- 0 until cp.nPE){
+      spPSum(i).io.spReadCmd(j).addr := outputArbiter(i).io.out.bits.addr + (denCol(j) << log2Ceil(cp.blockSize/8))
+  }
 }
-val pSumRow = spPSum.io.spReadData.map(_.data)
-val delayedOutputArbiterRow = for(i <- 0 until cp.nColInDense)yield{delayedOutputArbiterData(((i+1)*cp.blockSize)-1, i*cp.blockSize)}
-val accumulatedRow = delayedOutputArbiterRow.zip(pSumRow).map{case(x,y) => Mux(dec.io.partialSum, x+y, x)}
-val formattedOutput = accumulatedRow.map(_(cp.blockSize-1, 0)).reverse.reduce(Cat(_,_))
+val pSumRow = spPSum.map(_.io.spReadData.map(_.data))
+val delayedOutputArbiterRow = for(j <- 0 until cp.groupSize) yield {for(i <- 0 until cp.nColInDense)yield{delayedOutputArbiterData(j)(((i+1)*cp.blockSize)-1, i*cp.blockSize)}}
+val accumulatedRow = delayedOutputArbiterRow.zip(pSumRow).map{case(x,y) => x.zip(y).map{case(a,b) => Mux(dec.io.partialSum, a+b, a)}}
+val formattedOutput = accumulatedRow.map(_.map(_(cp.blockSize-1, 0)).reverse.reduce(Cat(_,_)))
 
 //Output connections
-io.spOutWrite.valid := RegNext(outputArbiter.io.out.valid)
-io.spOutWrite.bits.addr := RegNext(outputArbiter.io.out.bits.addr)
-io.spOutWrite.bits.data := formattedOutput
-outputArbiter.io.out.ready := io.spOutWrite.ready
+io.spOutWrite.zip(outputArbiter).map{case(x,y) => x.valid := RegNext(y.io.out.valid)}
+io.spOutWrite.zip(outputArbiter).map{case(x,y) => x.bits.addr := RegNext(y.io.out.bits.addr)}
+io.spOutWrite.zip(outputArbiter).map{case(x,y) => y.io.out.ready := x.ready}
+io.spOutWrite.zip(formattedOutput).map{case(x,y) => x.bits.data := y}
 
 
 when(state === sCombine){
   // Defaults
   aggDone := false.B
-  aggQueue.io.enq.valid := false.B
+  aggQueue.map{_.io.enq.valid := false.B}
 
   when(aggState === sAggNext){
 
     // Store data and increment group
-    aggBuffer := prWithNext.data
+    aggBuffer.zip(prWithNext).map{case(x,y) => x := y.data}
     aggGroup := aggGroup + 1.U
     when(aggGroup === (cp.nGroups-1).U){
       aggDone := true.B
@@ -320,8 +332,7 @@ when(state === sCombine){
     // When this group has a single partial row that extends from the previous group to the next group
     when (aggPRTable.isPRWithNextGroup && (aggPRTable.nPartialRows === 1.U)){
       aggState := sAggPrev
-      aggBuffer := aggBufferPlusPRWithPrev
-
+      aggBuffer.zip(aggBufferPlusPRWithPrev).map{case(x,y) => x := y}
       aggGroup := aggGroup + 1.U
       when(aggGroup === (cp.nGroups-1).U){
         aggDone := true.B
@@ -329,9 +340,9 @@ when(state === sCombine){
     
 
     // Send the output to the queue it is ready, stall if it is not ready
-    }.elsewhen(aggQueue.io.enq.ready){
+    }.elsewhen(aggQueue(0).io.enq.ready){
 
-      aggQueue.io.enq.valid := true.B
+      aggQueue.map{_.io.enq.valid := true.B}
 
       aggState := sAggNext
 
@@ -347,7 +358,7 @@ when(state === sCombine){
   aggGroup := 0.U
   aggState := sAggNext
   aggDone := false.B
-  aggQueue.io.enq.valid := false.B
+  aggQueue.map{_.io.enq.valid := false.B}
 }
 
   val allOutputQueuesEmpty = groupArray.map(_.io.outputQueueEmpty).reduce(_&&_)
@@ -356,6 +367,9 @@ when(state === sCombine){
 // group io
   for(i <- 0 until cp.nGroups){
 
+    groupArray(i).io.denseGroup := io.denseGroup
+    groupArray(i).io.denWrite := io.denWrite
+    groupArray(i).io.denWriteEn := io.denWriteEn
     groupArray(i).io.rowPtrBegin.bits := groupSelPlusOneTimesNNzPerGroup
     if (i > 0)
       groupArray(i).io.rowPtrBegin.valid := (groupSel === (i-1).U)
@@ -364,7 +378,10 @@ when(state === sCombine){
     groupArray(i).io.outputsComplete := allOutputQueuesEmpty
     groupArray(i).io.rowPtrEnd.bits := groupSelPlusOneTimesNNzPerGroup
     groupArray(i).io.rowPtrEnd.valid := (groupSel === i.U)
-    groupArbiter.io.in(i) <> groupArray(i).io.outputBufferWriteData
+    for (j <- 0 until cp.groupSize){
+      groupArbiter(j).io.in(i) <> groupArray(i).io.outputBufferWriteData(j)
+    }
+    // groupArbiter.zip(groupArray).map{case(x,y) => x.io.in(i) <> y.io.outputBufferWriteData(i)}
     groupArray(i).io.nRowPtrInGroup.bits := nRowWritten
     groupArray(i).io.nRowPtrInGroup.valid := (nRowWrittenValid && groupSel === i.U)
     groupArray(i).io.nNonZero.bits := nNonZeroPerGroup
@@ -460,7 +477,11 @@ io.done := (state === sIdle) && !io.start
       when(valFin){
         when(groupEnd){
           when(denseLoaded){
-            state := sDataMoveSum
+            when(dec.io.partialSum){
+              state := sDataMoveSum
+            }.otherwise{
+              state := sCompute
+            }
             pSumReadAddr := pSumReadAddr + bankBlockSizeBytes.U
           }.otherwise{
             state := sDataMoveDen

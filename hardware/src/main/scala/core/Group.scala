@@ -45,6 +45,9 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
     val rowPtrBegin = Flipped(ValidIO(UInt(32.W)))
     val rowPtrEnd = Flipped(ValidIO(UInt(32.W)))
     val isPRWithNextGroup = Flipped(ValidIO(Bool()))
+    val denWrite = Input(new SPWriteCmd(scratchType = "Global"))
+    val denWriteEn = Input(Bool())
+    val denseGroup = Input(UInt(ISA.DEN_GROUP_SEL_BITS.W))
     val prEntry = Output(new PRTableEntry)
     val start = Input(Bool())
     val done = Output(Bool())
@@ -98,19 +101,23 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   val spCol = Module(new Scratchpad(scratchType = "Col", masked = false))
   val spPtr = Module(new SingleScratchpad(scratchType = "Ptr", masked = false))
   val spDen = for(i <- 0 until cp.groupSize) yield {
-    Module(new BankedScratchpad(scratchType = "Den"))
+    Module(new DenseScratchpad(scratchType = "Den"))
   }
 
 
   io.spWrite.bits.spWriteCmd <> spVal.io.spWrite
   io.spWrite.bits.spWriteCmd <> spCol.io.spWrite
-  io.spWrite.bits.spWriteCmd <> spDen.io.spWrite
+  spDen.map{_.io.spWrite <> io.denWrite}
   
   io.ptrSpWrite.bits <> spPtr.io.spWrite
   io.spWrite.ready := true.B
   io.ptrSpWrite.ready := true.B
   spVal.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 0.U)
-  spDen.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 1.U)
+
+  // TODO: FIGURE THIS OUT
+  for(i <- 0 until cp.groupSize){
+    spDen(i).io.writeEn := io.denWriteEn && (io.denseGroup === i.U)
+  }
   spPtr.io.writeEn := io.ptrSpWrite.fire
   spCol.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 3.U)
 
