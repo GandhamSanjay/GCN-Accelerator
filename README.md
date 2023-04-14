@@ -15,11 +15,12 @@
 | Bits | Name | Bit Index | Description | 
 | --- | --- | --- | --- |
 |2 |opcode |[1:0] |0 – Load|
-|3 |Load Type |[4:2] |0 - Column Array<br>1 - Row Array<br>2 - Value Array<br>3 - Dense Matrix |
+|3 |Load Type |[4:2] |0 - Column Array<br>1 - Row Array<br>2 - Value Array<br>3 - Dense Matrix, loads directly into the local buffers |
 |64 |DRAM Offset |[68:5] |DRAM offset of the data to load |
 |26 |SRAM Offset |[94:69] |SRAM offset where the data will be stored |
-|32 | Size |[126:95] | Size of the array to load
-|1 |Final Load |[127] | Flag to indicate if this is the final load instruction before the SpMM computation
+|32 | Size |[126:95] |Size of the array to load |
+|1 |Final Load |[127] |Flag to indicate if this is the final load instruction before the SpMM computation |
+|10 |Dense Group |[137:128] |The dense group the tile should be loaded into if this is a dense matrix load |
 <br>
 
 2. Store
