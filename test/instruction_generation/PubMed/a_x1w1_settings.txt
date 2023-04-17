@@ -1,0 +1,6 @@
+bench_name = 'PubMed'
+dense_col = 16
+tile_dense_col = 8
+tile_spRow = 5000
+tile_spCol = 5000
+nPEs = 16

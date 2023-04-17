@@ -1,0 +1,9 @@
+bench_name = 'NELL'
+dense_col = 186
+tile_dense_col = 8
+tile_spRow = 16448
+tile_spCol = 4112
+nPEs = 16
+tile = True
+calculateCycles = True
+generateInstructions = False
