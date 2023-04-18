@@ -114,7 +114,6 @@ class Group(val groupID: Int = 0)(implicit p: Parameters) extends Module with IS
   io.ptrSpWrite.ready := true.B
   spVal.io.writeEn := io.spWrite.fire && (io.spWrite.bits.spSel === 0.U)
 
-  // TODO: FIGURE THIS OUT
   for(i <- 0 until cp.groupSize){
     spDen(i).io.writeEn := io.denWriteEn && (io.denseGroup === i.U)
   }

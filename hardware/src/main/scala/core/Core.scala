@@ -30,7 +30,7 @@ class Core(implicit p: Parameters) extends Module {
 
   load.io.spWrite.ready := true.B
   globalBuffer.io.spWrite <> load.io.spWrite.bits
-  globalBuffer.io.writeEn := load.io.spWrite.fire && ~load.io.isDenseLoad
+  globalBuffer.io.writeEn := load.io.spWrite.fire && ~(load.io.isDenseLoad || load.io.isPSumLoad)
   globalBuffer.io.spReadCmd <> compute.io.gbReadCmd
   globalBuffer.io.spReadData <> compute.io.gbReadData
   compute.io.spOutWrite.zip(outputScratchpad).map{case(x,y) => x.bits <> y.io.spWrite}
@@ -38,6 +38,7 @@ class Core(implicit p: Parameters) extends Module {
   compute.io.spOutWrite.zip(outputScratchpad).map{case(x,y) => y.io.writeEn := x.valid}
   compute.io.denWrite := load.io.spWrite.bits
   compute.io.denWriteEn := load.io.spWrite.fire && load.io.isDenseLoad
+  compute.io.pSumWriteEn := load.io.spWrite.fire && load.io.isPSumLoad
   compute.io.denseGroup := load.io.denseGroup
 
   io.cr.ecnt(0) := 0.U

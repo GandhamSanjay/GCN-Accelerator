@@ -21,6 +21,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
     val me_rd = new MEReadMaster
     val valid = Input(Bool())
     val isDenseLoad = Output(Bool())
+    val isPSumLoad = Output(Bool())
     val denseGroup = Output(UInt(ISA.DEN_GROUP_SEL_BITS.W))
     val done = Output(Bool())
     val isFinalLoad = Output(Bool())
@@ -55,7 +56,8 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
 
   // dense loading
   io.denseGroup := dec.io.denseGroup
-  io.isDenseLoad := ~dec.io.isSeq
+  io.isDenseLoad := ~dec.io.isSeq && ~dec.io.isPsum
+  io.isPSumLoad := ~dec.io.isSeq && dec.io.isPsum
 
   // instruction queue
   dec.io.inst := Mux(start, inst_q.io.deq.bits, inst)
@@ -142,7 +144,7 @@ class Load(debug: Boolean = false)(implicit p: Parameters) extends Module with I
   // data queue
   data_q.io.enq.bits.data := io.me_rd.data.bits.data
   data_q.io.enq.bits.addr := saddr
-  data_q.io.enq.valid := (state === sSeqReadData) && io.me_rd.data.valid && !dec.io.isPsum
+  data_q.io.enq.valid := (state === sSeqReadData) && io.me_rd.data.valid //&& !dec.io.isPsum
   
   // dram read
   io.me_rd.cmd.bits.len := rlen

@@ -146,7 +146,7 @@ class LoadDecode extends Module with ISAConstants{
     val denseGroup = Output(UInt(DEN_GROUP_SEL_BITS.W))
   })
   val dec = io.inst.asTypeOf(new MemDecode)
-  io.isSeq := io.isVal || io.isCol || io.isPtr || io.isPsum
+  io.isSeq := io.isVal || io.isCol || io.isPtr
   io.isVal := io.inst === LVAL
   io.isCol := io.inst === LCOL
   io.isPtr := io.inst === LPTR

@@ -39,6 +39,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module wit
     val spOutWrite = Vec(cp.groupSize, Decoupled(new SPWriteCmd))
     val denWrite = Input(new SPWriteCmd(scratchType = "Global"))
     val denWriteEn = Input(Bool())
+    val pSumWriteEn = Input(Bool())
     val denseGroup = Input(UInt(ISA.DEN_GROUP_SEL_BITS.W))
     val valid = Input(Bool())
     val done = Output(Bool())
@@ -280,12 +281,11 @@ val delayedOutputArbiterData = for(i <- 0 until cp.groupSize) yield {RegNext(out
 
 
 // Partial sum buffer
-val spPSum = for(i <- 0 until cp.groupSize) yield {Module(new BankedScratchpad(scratchType = "Den"))}
+val spPSum = for(i <- 0 until cp.groupSize) yield {Module(new DenseScratchpad(scratchType = "Den"))}
 
 for(i <- 0 until cp.groupSize){
-  spPSum(i).io.spWrite.data := Mux(dec.io.pSumInOutputSp, Mux(RegNext(pSumReadAddr(5)),io.pSumReadData.data(511,256),io.pSumReadData.data(255,0)), io.gbReadData.data)
-  spPSum(i).io.spWrite.addr := pSumWriteAddr
-  spPSum(i).io.writeEn := state === sDataMoveSum
+  spPSum(i).io.spWrite <> io.denWrite
+  spPSum(i).io.writeEn := io.pSumWriteEn && (i.U === io.denseGroup)
 }
 
 // Read partial sum row
@@ -497,12 +497,12 @@ io.done := (state === sIdle) && !io.start
       denReadAddr := denReadAddr + bankBlockSizeBytes.U
       when(denFin){
         pSumReadAddr := pSumReadAddr + bankBlockSizeBytes.U
-        
-        when(dec.io.partialSum){
+        state := sCompute
+        /*when(dec.io.partialSum){
           state := sDataMoveSum
         }.otherwise{
           state := sCompute
-        }
+        }*/
       }
     }
     is(sDataMoveSum){
