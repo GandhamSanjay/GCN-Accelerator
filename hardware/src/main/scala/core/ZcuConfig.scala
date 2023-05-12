@@ -32,7 +32,7 @@ case class CoreParams(
   val loadDataQueueEntries: Int = 10,
   val Compression: String = "CSR",
   val scratchColSize: Int = 1024*8*10,
-  val scratchDenSize: Int = 1024*8*32,
+  val scratchDenSize: Int = 1024*8*64,
   val scratchValSize: Int = 1024*8*10,
   val scratchPtrSize: Int = 1024*8*10,
   val globalBufferSize: Int = 1024*8*1024*2,
